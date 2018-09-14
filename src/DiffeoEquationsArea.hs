@@ -2,6 +2,7 @@ module DiffeoEquationsArea where
 
 import PDE
 import PDEProlongation
+import TriangleMap
 import qualified IntertwinerArea
 import qualified IntertwinerMetric
 import qualified IntertwinerSym3
@@ -44,7 +45,7 @@ firstRange :: [Integer]
 firstRange = [0..firstDimension - 1]
 
 jetMap :: Integer -> Integer -> Integer
-jetMap derivative idep = firstDimension + idep * firstDimension + derivative
+jetMap derivative idep = firstDimension + (buildTriangleMap firstDimension) Map.! (min derivative idep, max derivative idep)
 
 prolongAreaPDE :: PDE -> [PDE]
 prolongAreaPDE pde = do derivative <- firstRange
@@ -92,7 +93,7 @@ areaPDE1Part1Inner areaIntMap m n = do a <- areaRange
                                        b <- areaRange
                                        let prefactor = areaIntMap Map.! (a, b, m, n)
                                        return $ Term { coefficient = if prefactor == 0 then Null else Linear prefactor b
-                                                       , independent = a }
+                                                       , dependent = a }
 
 areaPDE1Part2Inner :: Map.Map (Integer, Integer, Integer, Integer) Rational -> Integer -> Integer -> PDE
 areaPDE1Part2Inner areaIntMap m n = concat $ 
@@ -105,9 +106,9 @@ areaPDE1Part2Inner areaIntMap m n = concat $
                                        let indicesAi = areaFirstDerivative a i
                                        let indicesBj = areaFirstDerivative b j
                                        return $ [ Term { coefficient = if prefactor1 == 0 then Null else Linear prefactor1 indicesBj
-                                                         , independent = indicesAi },
+                                                         , dependent = indicesAi },
                                                   Term { coefficient = if prefactor2 == 0 then Null else Linear prefactor2 indicesBj
-                                                         , independent = indicesAi } ]
+                                                         , dependent = indicesAi } ]
 
 areaPDE1Part3Inner :: Map.Map (Integer, Integer, Integer, Integer) Rational -> Map.Map (Integer, Integer, Integer, Integer) Rational -> Integer -> Integer -> PDE
 areaPDE1Part3Inner areaIntMap metricIntMap m n = concat $ 
@@ -120,9 +121,9 @@ areaPDE1Part3Inner areaIntMap metricIntMap m n = concat $
                                                     let indicesAi = areaSecondDerivative a i
                                                     let indicesBj = areaSecondDerivative b j
                                                     return $ [ Term { coefficient = if prefactor1 == 0 then Null else Linear prefactor1 indicesBj
-                                                                      , independent = indicesAi },
+                                                                      , dependent = indicesAi },
                                                                Term { coefficient = if prefactor2 == 0 then Null else Linear prefactor2 indicesBj
-                                                                      , independent = indicesAi } ]
+                                                                      , dependent = indicesAi } ]
 
 areaPDE2Part1Inner :: Map.Map (Integer, Integer, Integer, Integer) Rational -> Map.Map (Integer, (Integer, Integer)) Rational -> Integer -> Integer -> PDE
 areaPDE2Part1Inner areaIntMap sym2IntMap k n = do a <- areaRange
@@ -132,7 +133,7 @@ areaPDE2Part1Inner areaIntMap sym2IntMap k n = do a <- areaRange
                                                   let prefactor = areaIntMap Map.! (a, b, m, n) * sym2IntMap Map.! (k, (i, m))
                                                   let indicesAi = areaFirstDerivative a i
                                                   return $ Term { coefficient = if prefactor == 0 then Null else Linear prefactor b
-                                                                , independent = indicesAi }
+                                                                , dependent = indicesAi }
 
 areaPDE2Part2Inner :: Map.Map (Integer, Integer, Integer, Integer) Rational -> Map.Map (Integer, Integer, Integer, Integer) Rational -> Integer -> Integer -> PDE
 areaPDE2Part2Inner areaIntMap metricIntMap k n = do a <- areaRange
@@ -144,7 +145,7 @@ areaPDE2Part2Inner areaIntMap metricIntMap k n = do a <- areaRange
                                                     let indicesAi = areaSecondDerivative a i
                                                     let indicesBj = areaFirstDerivative b j
                                                     return $ Term { coefficient = if prefactor == 0 then Null else Linear prefactor indicesBj
-                                                                  , independent = indicesAi }
+                                                                  , dependent = indicesAi }
 
 areaPDE2Part3Inner :: Integer -> Integer -> PDE
 areaPDE2Part3Inner k n = do a <- areaRange
@@ -155,7 +156,7 @@ areaPDE2Part3Inner k n = do a <- areaRange
                             let indicesAi = areaSecondDerivative a i
                             let indicesBj = areaFirstDerivative b j
                             return $ Term { coefficient = Linear prefactor indicesBj
-                                          , independent = indicesAi }
+                                          , dependent = indicesAi }
 
 areaPDE3Inner :: Map.Map (Integer, Integer, Integer, Integer) Rational -> Map.Map ((Integer, Integer), Integer) Rational -> Map.Map (Integer, (Integer, Integer, Integer)) Rational -> Integer -> Integer -> PDE
 areaPDE3Inner areaIntMap sym2ProjMap sym3IntMap k n = do a <- areaRange
@@ -167,4 +168,4 @@ areaPDE3Inner areaIntMap sym2ProjMap sym3IntMap k n = do a <- areaRange
                                                          let prefactor = areaIntMap Map.! (a, b, m, n) * sym2ProjMap Map.! ((p, q), i) * sym3IntMap Map.! (k, (p, q, m))
                                                          let indicesAi = areaSecondDerivative a i
                                                          return $ Term { coefficient = if prefactor == 0 then Null else Linear prefactor b
-                                                                       , independent = indicesAi }
+                                                                       , dependent = indicesAi }
