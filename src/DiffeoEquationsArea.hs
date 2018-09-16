@@ -55,38 +55,37 @@ prolongAreaPDESystem :: [PDE] -> [PDE]
 prolongAreaPDESystem = concat . (map prolongAreaPDE)
 
 areaPDE1 :: [PDE]
-areaPDE1 = let areaIntertwinerMap = IntertwinerArea.buildAreaIntertwinerMap
+areaPDE1 = a ++ b ++ c
+           where
+               areaIntertwinerMap = IntertwinerArea.buildAreaIntertwinerMap
                metricIntertwinerMap = IntertwinerMetric.buildMetricIntertwinerMap
                sym2IntertwinerMap = IntertwinerMetric.buildSym2IntertwinerMap
                sym2ProjectorMap = IntertwinerMetric.buildSym2ProjectorMap
                sym3IntertwinerMap = IntertwinerSym3.buildSym3IntertwinerMap
                sym3ProjectorMap = IntertwinerSym3.buildSym3ProjectorMap
-           in
-           do m <- spacetimeRange
-              n <- spacetimeRange
-              let pde1 = areaPDE1Part1Inner areaIntertwinerMap m n
-              let pde2 = areaPDE1Part2Inner areaIntertwinerMap m n
-              let pde3 = areaPDE1Part3Inner areaIntertwinerMap metricIntertwinerMap m n
-              let pde1Reduced = filter (\Term { coefficient = c } -> c /= Null) pde1
-              let pde2Reduced = filter (\Term { coefficient = c } -> c /= Null) pde2
-              let pde3Reduced = filter (\Term { coefficient = c } -> c /= Null) pde3
-              return $ pde1Reduced ++ pde2Reduced ++ pde3Reduced
-           ++
-           do k <- spacetimeSecondRange
-              n <- spacetimeRange
-              let pde1 = areaPDE2Part1Inner areaIntertwinerMap sym2IntertwinerMap k n
-              let pde2 = areaPDE2Part2Inner areaIntertwinerMap metricIntertwinerMap k n
-              let pde3 = areaPDE2Part3Inner k n
-              let pde1Reduced = filter (\Term { coefficient = c } -> c /= Null) pde1
-              let pde2Reduced = filter (\Term { coefficient = c } -> c /= Null) pde2
-              let pde3Reduced = filter (\Term { coefficient = c } -> c /= Null) pde3
-              return $ pde1Reduced ++ pde2Reduced ++ pde3Reduced
-           ++
-           do k <- spacetimeThirdRange
-              n <- spacetimeRange
-              let pde = areaPDE3Inner areaIntertwinerMap sym2ProjectorMap sym3IntertwinerMap k n
-              let pdeReduced = filter (\Term { coefficient = c } -> c /= Null) pde
-              return pdeReduced
+               a = do m <- spacetimeRange
+                      n <- spacetimeRange
+                      let pde1 = areaPDE1Part1Inner areaIntertwinerMap m n
+                      let pde2 = areaPDE1Part2Inner areaIntertwinerMap m n
+                      let pde3 = areaPDE1Part3Inner areaIntertwinerMap metricIntertwinerMap m n
+                      let pde1Reduced = filter (\Term { coefficient = c } -> c /= Null) pde1
+                      let pde2Reduced = filter (\Term { coefficient = c } -> c /= Null) pde2
+                      let pde3Reduced = filter (\Term { coefficient = c } -> c /= Null) pde3
+                      return $ pde1Reduced ++ pde2Reduced ++ pde3Reduced
+               b = do k <- spacetimeSecondRange
+                      n <- spacetimeRange
+                      let pde1 = areaPDE2Part1Inner areaIntertwinerMap sym2IntertwinerMap k n
+                      let pde2 = areaPDE2Part2Inner areaIntertwinerMap metricIntertwinerMap k n
+                      let pde3 = areaPDE2Part3Inner k n
+                      let pde1Reduced = filter (\Term { coefficient = c } -> c /= Null) pde1
+                      let pde2Reduced = filter (\Term { coefficient = c } -> c /= Null) pde2
+                      let pde3Reduced = filter (\Term { coefficient = c } -> c /= Null) pde3
+                      return $ pde1Reduced ++ pde2Reduced ++ pde3Reduced
+               c = do k <- spacetimeThirdRange
+                      n <- spacetimeRange
+                      let pde = areaPDE3Inner areaIntertwinerMap sym2ProjectorMap sym3IntertwinerMap k n
+                      let pdeReduced = filter (\Term { coefficient = c } -> c /= Null) pde
+                      return pdeReduced
 
 areaPDE1Part1Inner :: Map.Map (Integer, Integer, Integer, Integer) Rational -> Integer -> Integer -> PDE
 areaPDE1Part1Inner areaIntMap m n = do a <- areaRange
