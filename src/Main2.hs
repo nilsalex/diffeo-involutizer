@@ -12,10 +12,13 @@ import Data.Ratio
 import System.Random
 
 import qualified Data.Map as M
+import qualified Data.IntMap as IM
 import qualified Data.Sequence as S 
+
+getAreaPDE :: PDESystem Double
+getAreaPDE = areaPDE
 
 main = do
 --        runMIxTests
-        putStrLn $ prettyMIx $ empty 5
-        putStrLn $ prettyMIx $ single 5 3
-        putStrLn $ prettyMIx $ addIndex 1 $ addIndex 3 $ single 5 3
+        gen <- getStdGen
+        putStr $ prettyPDESystem $ evalPDESystemRand gen 315 $ systemProlongations 315 getAreaPDE

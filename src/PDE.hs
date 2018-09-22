@@ -10,6 +10,8 @@ import qualified Data.Map.Strict as M
 import qualified Data.Sequence as S
 import Data.List
 
+import Data.Ratio
+
 data Num a => Coefficient a = Null | Constant a | Affine a (IM.IntMap a) deriving (Show, Eq, Ord)
 
 data Num a => PDE a = PDECons (M.Map MultiIndex (Coefficient a)) deriving (Show, Eq, Ord)
@@ -69,13 +71,17 @@ prettyCoefficient (Affine c imap) = "(" ++ show c ++ (prettyCoefficientLinear 0 
 
 
 prettyCoefficientLinear :: (Show a, Num a, Ord a) => Int -> IM.IntMap a -> String
-prettyCoefficientLinear d = drop d . IM.foldMapWithKey (\i c -> (if signum c < 0 then " - " else " + ") ++ show (abs c))
+prettyCoefficientLinear d = drop d . IM.foldMapWithKey (\i c -> (if signum c < 0 then " - " else " + ") ++ show (abs c)
+                                                                ++ " x_" ++ show (i+1))
 
 emptyPDE :: Num a => PDE a
 emptyPDE = PDECons M.empty
 
 pdeFromMap :: (Num a, Eq a) => M.Map MultiIndex (Coefficient a) -> PDE a
 pdeFromMap = PDECons . (M.filter (not . isZero))
+
+fromPDESys :: Num a => PDESystem a -> S.Seq (PDE a)
+fromPDESys (PDESys sysSeq) = sysSeq
 
 pdeFromConstIdepDerivative :: (Num a, Eq a) => Int -> a -> Int -> Int -> PDE a
 pdeFromConstIdepDerivative _ 0 _ _ = pdeFromMap $ M.empty
@@ -87,19 +93,25 @@ getPDEMap (PDECons pdeMap) = pdeMap
 addPDEs :: (Num a, Eq a) => PDE a -> PDE a -> PDE a
 addPDEs (PDECons pdeMapA) (PDECons pdeMapB) = pdeFromMap $ M.unionWith addCoefficients pdeMapA pdeMapB
 
-buildRandomIdepsMap :: (Num a, Random a, RandomGen r) => r -> Int -> M.Map Int a 
-buildRandomIdepsMap gen ideps = M.fromList $ zip [0..ideps-1] $ randoms gen
+prettyPDE :: (Num a, Eq a, Show a, Ord a) => PDE a -> String
+prettyPDE (PDECons pdemap) = drop 3 $ M.foldMapWithKey (\mIx coeff -> " + " ++ (prettyCoefficient coeff) ++ " " ++ (prettyMIx mIx)) pdemap
 
-evalCoefficientRand :: (Num a, Eq a, Random a) => M.Map Int a -> Coefficient a -> Coefficient a
+prettyPDESystem :: (Num a, Eq a, Show a, Ord a) => PDESystem a -> String
+prettyPDESystem (PDESys pdeseq) = tail $ foldMap (\pde -> "\n" ++ prettyPDE pde) pdeseq
+
+buildRandomIdepsMap :: (Num a, Eq a, RandomGen r) => r -> Int -> M.Map Int a
+buildRandomIdepsMap gen ideps = M.fromList $ zip [0..ideps-1] $ map fromIntegral $ (randoms gen :: [Int])
+
+evalCoefficientRand :: (Num a, Eq a) => M.Map Int a -> Coefficient a -> Coefficient a
 evalCoefficientRand _ Null = Null
 evalCoefficientRand randMap coeff@(Constant c) = coeff
 evalCoefficientRand randMap (Affine c imap) = let evaluated = (sum $ IM.mapWithKey (\i c -> c * (randMap M.! i)) imap) + c
                                               in coeffFromConst evaluated
 
-evalPDERand :: (Num a, Eq a, Random a) => M.Map Int a -> PDE a -> PDE a
+evalPDERand :: (Num a, Eq a) => M.Map Int a -> PDE a -> PDE a
 evalPDERand randMap (PDECons pdeMap) = pdeFromMap $ M.map (evalCoefficientRand randMap) pdeMap
 
-evalPDESystemRand :: (Num a, Eq a, Random a) => StdGen -> Int -> PDESystem a -> PDESystem a
+evalPDESystemRand :: (Num a, Eq a) => StdGen -> Int -> PDESystem a -> PDESystem a
 evalPDESystemRand gen ideps (PDESys pdesys) = PDESys $ fmap (evalPDERand (buildRandomIdepsMap gen ideps)) pdesys
 
 
