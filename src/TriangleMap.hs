@@ -12,7 +12,7 @@ triangleList :: Int -> [((Int, Int), Int)]
 triangleList dim = foldl (triangleListInner dim) [] [0..triangleDim dim - 1]
 
 triangleListInner :: Int -> [((Int, Int), Int)] -> Int -> [((Int, Int), Int)]
-triangleListInner dim [] i = [((0, 0), 0)]
+triangleListInner _ [] _ = [((0, 0), 0)]
 triangleListInner dim ((xp, xi):xs) i = (nextPair dim xp, i) : (xp, xi) : xs
 
 nextPair :: Int -> (Int, Int) -> (Int, Int)

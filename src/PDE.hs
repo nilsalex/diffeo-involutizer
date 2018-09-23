@@ -3,38 +3,75 @@
 module PDE where
 
 import MultiIndex
-import Control.Monad.Random
+import TriangleMap
+
+import System.Random
 import Test.QuickCheck
+import Control.Monad
 import qualified Data.IntMap.Strict as IM
 import qualified Data.Map.Strict as M
 import qualified Data.Sequence as S
-import Data.List
 
-import Data.Ratio
+data Coefficient a = Null | Constant a | Affine a (IM.IntMap a) deriving (Show, Eq, Ord)
 
-data Num a => Coefficient a = Null | Constant a | Affine a (IM.IntMap a) deriving (Show, Eq, Ord)
+data PDE a = PDECons Int (M.Map MultiIndex (Coefficient a)) deriving (Show, Eq, Ord)
 
-data Num a => PDE a = PDECons (M.Map MultiIndex (Coefficient a)) deriving (Show, Eq, Ord)
+data PDESystem a = PDESys Int (S.Seq (PDE a)) deriving (Show, Eq, Ord)
 
-data Num a => PDESystem a = PDESys (S.Seq (PDE a)) deriving (Show, Eq, Ord)
+instance (Num a, Eq a, Arbitrary a) => Arbitrary (Coefficient a) where
+    arbitrary = do 
+                 coeffType <- (choose (0, 4) :: Gen Int)
+                 randomC <- arbitrary
+                 randomM <- arbitrary
+                 randomI <- arbitrary
+                 let coeff = case coeffType of 0 -> coeffFromConst randomC
+                                               1 -> coeffFromMap randomM
+                                               2 -> coeffFromConstMap randomC randomM
+                                               3 -> coeffFromConstIdep randomC randomI
+                                               4 -> Null
+                                               _ -> undefined
+                 return coeff
+
+coeffConstraint :: (Num a, Eq a) => Coefficient a -> Bool
+coeffConstraint Null = True
+coeffConstraint (Constant 0) = False
+coeffConstraint (Constant _) = True
+coeffConstraint (Affine _ imap) = if IM.size imap > 0 then True else False
+
+pdeConstraint :: (Num a, Eq a) => PDE a -> Bool
+pdeConstraint (PDECons ideps pdeMap) = (ideps > 0) &&
+                                       (all coeffConstraint pdeMap) &&
+                                       (all (\mIx -> mIxConstraint mIx && mIxLength mIx == ideps) $ M.keys pdeMap)
 
 coeffFromConst :: (Eq a, Num a) => a -> Coefficient a
 coeffFromConst 0 = Null
 coeffFromConst c = Constant c
 
+prop_coeffFromConst :: (Eq a, Num a) => a -> Bool
+prop_coeffFromConst = coeffConstraint . coeffFromConst
+                        
 coeffFromMap :: (Num a, Eq a) => IM.IntMap a -> Coefficient a
 coeffFromMap imap = if nonZero then Affine 0 nonZeroMap else Null
                     where nonZeroMap = IM.filter ((/=) 0) imap
                           nonZero = not (IM.null nonZeroMap)
+
+prop_coeffFromMap :: (Num a, Eq a) => IM.IntMap a -> Bool
+prop_coeffFromMap = coeffConstraint . coeffFromMap
 
 coeffFromConstMap :: (Num a, Eq a) => a -> IM.IntMap a -> Coefficient a
 coeffFromConstMap c imap = if nonZero then Affine c nonZeroMap else coeffFromConst c
                            where nonZeroMap = IM.filter ((/=) 0) imap
                                  nonZero = not (IM.null nonZeroMap)
 
+prop_coeffFromConstMap :: (Num a, Eq a) => a -> IM.IntMap a -> Bool
+prop_coeffFromConstMap c = coeffConstraint . coeffFromConstMap c
+
 coeffFromConstIdep :: (Eq a, Num a) => a -> Int -> Coefficient a
-coeffFromConstIdep 0 i = Null
+coeffFromConstIdep 0 _ = Null
 coeffFromConstIdep c i = coeffFromMap $ IM.singleton i c
+
+prop_coeffFromConstIdep :: (Eq a, Num a) => a -> Int -> Bool
+prop_coeffFromConstIdep c = coeffConstraint . coeffFromConstIdep c
 
 getCoeffMap :: Num a => Coefficient a -> Either a (a, IM.IntMap a)
 getCoeffMap (Null)           = Left 0
@@ -54,11 +91,17 @@ addCoefficients (Constant a) (Affine b imap) = Affine (a+b) imap
 addCoefficients (Affine a imap) (Constant b) = Affine (a+b) imap
 addCoefficients (Affine a imap) (Affine b imap') = coeffFromConstMap (a+b) $ IM.unionWith (+) imap imap'
 
+prop_addCoefficients :: (Num a, Eq a) => Coefficient a -> Coefficient a -> Bool
+prop_addCoefficients c1 c2 = coeffConstraint $ addCoefficients c1 c2
+
 coeffDerivative :: (Num a, Eq a) => Int -> Coefficient a -> Coefficient a
 coeffDerivative _ Null = Null
 coeffDerivative _ (Constant _) = Null
 coeffDerivative derivative (Affine _ imap) = case IM.lookup derivative imap of Nothing  -> Null
                                                                                (Just c) -> coeffFromConst c
+
+prop_coeffDerivative :: (Num a, Eq a) => Int -> Coefficient a -> Bool
+prop_coeffDerivative derivative = coeffConstraint . coeffDerivative derivative
 
 prettyCoefficient :: (Show a, Num a, Eq a, Ord a) => Coefficient a -> String
 prettyCoefficient Null = "0"
@@ -74,46 +117,113 @@ prettyCoefficientLinear :: (Show a, Num a, Ord a) => Int -> IM.IntMap a -> Strin
 prettyCoefficientLinear d = drop d . IM.foldMapWithKey (\i c -> (if signum c < 0 then " - " else " + ") ++ show (abs c)
                                                                 ++ " x_" ++ show (i+1))
 
-emptyPDE :: Num a => PDE a
-emptyPDE = PDECons M.empty
+emptyPDE :: Num a => Int -> PDE a
+emptyPDE ideps
+            | ideps <= 0 = undefined
+            | otherwise = PDECons ideps M.empty
 
-pdeFromMap :: (Num a, Eq a) => M.Map MultiIndex (Coefficient a) -> PDE a
-pdeFromMap = PDECons . (M.filter (not . isZero))
+prop_emptyPDE :: Positive Int -> Bool
+prop_emptyPDE = (pdeConstraint :: PDE Int -> Bool) . emptyPDE . getPositive
+
+pdeFromMap :: (Num a, Eq a) => Int -> M.Map MultiIndex (Coefficient a) -> PDE a
+pdeFromMap ideps
+            | ideps <= 0 = undefined
+            | otherwise  = PDECons ideps . (M.filter (not . isZero))
+
+genPDEMap :: Gen (Int, M.Map MultiIndex (Coefficient Int))
+genPDEMap = do
+                len <- choose (1, 50)
+                pdeMap <- genPDEMapLen len
+                return (len, pdeMap)
+
+genPDEMapLen :: Int -> Gen (M.Map MultiIndex (Coefficient Int))
+genPDEMapLen len = liftM2 (\a b -> M.fromList $ zip a b) (listOf (genMIx len)) (arbitrary :: Gen [Coefficient Int])
+                
+prop_pdeFromMap :: Property
+prop_pdeFromMap = forAll genPDEMap $ (\(ideps, pdeMap) -> pdeConstraint $ pdeFromMap ideps pdeMap)
 
 fromPDESys :: Num a => PDESystem a -> S.Seq (PDE a)
-fromPDESys (PDESys sysSeq) = sysSeq
+fromPDESys (PDESys _ sysSeq) = sysSeq
 
 pdeFromConstIdepDerivative :: (Num a, Eq a) => Int -> a -> Int -> Int -> PDE a
-pdeFromConstIdepDerivative _ 0 _ _ = pdeFromMap $ M.empty
-pdeFromConstIdepDerivative len c i d = pdeFromMap $ M.singleton (single len d) (coeffFromConstIdep c i)
+pdeFromConstIdepDerivative ideps 0 _ _ = pdeFromMap ideps M.empty
+pdeFromConstIdepDerivative ideps c i d = pdeFromMap ideps $ M.singleton (single ideps d) (coeffFromConstIdep c i)
+
+prop_pdeFromConstIdepDerivative :: Property
+prop_pdeFromConstIdepDerivative = forAll
+                                  ((arbitrary :: Gen (Int, Int, Int, Int)) `suchThat` \(ideps, _, i, d) -> ideps > 0 &&
+                                                                                                           i >= 0 &&
+                                                                                                           d >= 0 &&
+                                                                                                           i < ideps &&
+                                                                                                           d < ideps) $
+                                  \(ideps, c, i, d) -> pdeConstraint $ pdeFromConstIdepDerivative ideps c i d
 
 getPDEMap :: Num a => PDE a -> M.Map MultiIndex (Coefficient a)
-getPDEMap (PDECons pdeMap) = pdeMap
+getPDEMap (PDECons _ pdeMap) = pdeMap
+
+getIdeps :: Num a => PDE a -> Int
+getIdeps (PDECons ideps _) = ideps
 
 addPDEs :: (Num a, Eq a) => PDE a -> PDE a -> PDE a
-addPDEs (PDECons pdeMapA) (PDECons pdeMapB) = pdeFromMap $ M.unionWith addCoefficients pdeMapA pdeMapB
+addPDEs (PDECons lenA pdeMapA) (PDECons lenB pdeMapB)
+            | lenA /= lenB = undefined
+            | otherwise = pdeFromMap lenA $ M.unionWith addCoefficients pdeMapA pdeMapB
+
+prop_addPDEs :: Property
+prop_addPDEs = forAll (do len <- choose (1, 50)
+                          pde1 <- genPDEMapLen len
+                          pde2 <- genPDEMapLen len
+                          return (pdeFromMap len pde1, pdeFromMap len pde2))
+               $ \(pde1, pde2) -> let pdeSum = addPDEs pde1 pde2
+                                  in pdeConstraint pdeSum
 
 prettyPDE :: (Num a, Eq a, Show a, Ord a) => PDE a -> String
-prettyPDE (PDECons pdemap) = drop 3 $ M.foldMapWithKey (\mIx coeff -> " + " ++ (prettyCoefficient coeff) ++ " " ++ (prettyMIx mIx)) pdemap
+prettyPDE = drop 3 . (++ "\n") . M.foldMapWithKey (\mIx coeff -> " + " ++ (prettyCoefficient coeff) ++ " " ++ (prettyMIx mIx)) . getPDEMap
+
+getPDESequence :: PDESystem a -> S.Seq (PDE a)
+getPDESequence (PDESys _ pdeSeq) = pdeSeq
+
+getSysIdeps :: (Num a, Eq a) => PDESystem a -> Int
+getSysIdeps (PDESys ideps _) = ideps
 
 prettyPDESystem :: (Num a, Eq a, Show a, Ord a) => PDESystem a -> String
-prettyPDESystem (PDESys pdeseq) = tail $ foldMap (\pde -> "\n" ++ prettyPDE pde) pdeseq
+prettyPDESystem (PDESys _ pdeseq) = foldMap (\pde -> prettyPDE pde) pdeseq
+
+concatPDESystems :: PDESystem a -> PDESystem a -> PDESystem a
+concatPDESystems (PDESys i1 ps1) (PDESys i2 ps2)
+                    | i1 /= i2 || i1 == 0 = undefined
+                    | otherwise = PDESys i1 $ ps1 S.>< ps2
 
 buildRandomIdepsMap :: (Num a, Eq a, RandomGen r) => r -> Int -> M.Map Int a
 buildRandomIdepsMap gen ideps = M.fromList $ zip [0..ideps-1] $ map fromIntegral $ (randoms gen :: [Int])
 
 evalCoefficientRand :: (Num a, Eq a) => M.Map Int a -> Coefficient a -> Coefficient a
 evalCoefficientRand _ Null = Null
-evalCoefficientRand randMap coeff@(Constant c) = coeff
-evalCoefficientRand randMap (Affine c imap) = let evaluated = (sum $ IM.mapWithKey (\i c -> c * (randMap M.! i)) imap) + c
+evalCoefficientRand _ coeff@(Constant _) = coeff
+evalCoefficientRand randMap (Affine c imap) = let evaluated = (sum $ IM.mapWithKey (\i c' -> c' * (randMap M.! i)) imap) + c
                                               in coeffFromConst evaluated
 
 evalPDERand :: (Num a, Eq a) => M.Map Int a -> PDE a -> PDE a
-evalPDERand randMap (PDECons pdeMap) = pdeFromMap $ M.map (evalCoefficientRand randMap) pdeMap
+evalPDERand randMap pde = pdeFromMap (getIdeps pde) $ M.map (evalCoefficientRand randMap) $ getPDEMap pde
 
-evalPDESystemRand :: (Num a, Eq a) => StdGen -> Int -> PDESystem a -> PDESystem a
-evalPDESystemRand gen ideps (PDESys pdesys) = PDESys $ fmap (evalPDERand (buildRandomIdepsMap gen ideps)) pdesys
+evalPDESystemRand :: (Num a, Eq a) => StdGen -> PDESystem a -> PDESystem a
+evalPDESystemRand gen (PDESys ideps pdesys) = PDESys ideps $ fmap (evalPDERand (buildRandomIdepsMap gen ideps)) pdesys
 
+prettyPDEMatrix :: (Num a, Eq a, Show a, Ord a) => PDESystem a -> String
+prettyPDEMatrix (PDESys ideps pdeSequence) = let tMap = buildTriangleMap ideps
+                                             in S.foldMapWithIndex (prettyPDEMatrixRow tMap) pdeSequence
+
+prettyPDEMatrixRow :: (Num a, Eq a, Show a, Ord a) => M.Map (Int, Int) Int -> Int -> PDE a -> String
+prettyPDEMatrixRow tMap eqnum (PDECons _ pdeMap) = M.foldMapWithKey
+                                                        (\mIx coeff -> "(" ++
+                                                                       show (eqnum+1) ++
+                                                                       ", " ++
+                                                                       show (toZerothFirstSecond tMap mIx + 1) ++
+                                                                       ") = " ++
+                                                                       prettyCoefficient coeff ++
+                                                                       "\n")
+                                                          pdeMap
 
 return []
+runPDETests :: IO Bool
 runPDETests = $forAllProperties (quickCheckWithResult stdArgs { maxSuccess = 10000 })
