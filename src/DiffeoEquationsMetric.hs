@@ -1,7 +1,6 @@
-module DiffeoEquationsArea (areaPDE) where
+module DiffeoEquationsMetric (metricPDE) where
 
 import PDE
-import qualified IntertwinerArea
 import qualified IntertwinerMetric
 import qualified IntertwinerSym3
 import Index
@@ -17,7 +16,7 @@ spacetimeSecondDimension :: Int
 spacetimeSecondDimension = (spacetimeDimension * (spacetimeDimension + 1)) `div` 2
 
 areaDimension :: Int
-areaDimension = 21
+areaDimension = 10
 
 spacetimeRange :: [Int]
 spacetimeRange = [0..spacetimeDimension - 1]
@@ -76,30 +75,30 @@ firstDimension = (1 + spacetimeDimension + spacetimeSecondDimension) * areaDimen
 firstRange :: [Int]
 firstRange = [0..firstDimension - 1]
 
-areaPDE :: (Fractional a, Eq a) => PDESystem a
-areaPDE = PDESys firstDimension $ S.fromList $
-           ((\m n -> let pde1 = areaPDE1Part1Inner aIMap m n
-                         pde2 = areaPDE1Part2Inner aIMap m n
-                         pde3 = areaPDE1Part3Inner aIMap mIMap m n
-                           in if (deltaS m n == (1 :: Int)) then addPDEs (addPDEs (addPDEs pde1 pde2) pde3)
-                                                                (pdeFromConstDep firstDimension 1)
-                                                          else addPDEs (addPDEs pde1 pde2) pde3)
-             <$> spacetimeRangeUp <*> spacetimeRangeDown)
-           ++
-           ((\k n -> let pde1 = areaPDE2Part1Inner aIMap s2IMap k n
-                         pde2 = areaPDE2Part2Inner aIMap mIMap k n
-                         pde3 = areaPDE2Part3Inner k n
-                     in addPDEs (addPDEs pde1 pde2) pde3)
-             <$> spacetimeSecondRangeUp <*> spacetimeRangeDown)
-           ++
-           ((\k n -> areaPDE3Inner aIMap s2PMap s3IMap k n)
-             <$> spacetimeThirdRangeUp <*> spacetimeRangeDown)
-           where
-               aIMap = IntertwinerArea.buildAreaIntertwinerMap
-               mIMap = IntertwinerMetric.buildMetricIntertwinerMap
-               s2IMap = IntertwinerMetric.buildSym2IntertwinerMap
-               s2PMap = IntertwinerMetric.buildSym2ProjectorMap
-               s3IMap = IntertwinerSym3.buildSym3IntertwinerMap
+metricPDE :: (Fractional a, Eq a) => PDESystem a
+metricPDE = PDESys firstDimension $ S.fromList $
+            ((\m n -> let pde1 = areaPDE1Part1Inner aIMap m n
+                          pde2 = areaPDE1Part2Inner aIMap m n
+                          pde3 = areaPDE1Part3Inner aIMap mIMap m n
+                            in if (deltaS m n == (1 :: Int)) then addPDEs (addPDEs (addPDEs pde1 pde2) pde3)
+                                                                 (pdeFromConstDep firstDimension 1)
+                                                           else addPDEs (addPDEs pde1 pde2) pde3)
+              <$> spacetimeRangeUp <*> spacetimeRangeDown)
+            ++
+            ((\k n -> let pde1 = areaPDE2Part1Inner aIMap s2IMap k n
+                          pde2 = areaPDE2Part2Inner aIMap mIMap k n
+                          pde3 = areaPDE2Part3Inner k n
+                      in addPDEs (addPDEs pde1 pde2) pde3)
+              <$> spacetimeSecondRangeUp <*> spacetimeRangeDown)
+            ++
+            ((\k n -> areaPDE3Inner aIMap s2PMap s3IMap k n)
+              <$> spacetimeThirdRangeUp <*> spacetimeRangeDown)
+            where
+                aIMap = IntertwinerMetric.buildMetricIntertwinerMap
+                mIMap = aIMap
+                s2IMap = IntertwinerMetric.buildSym2IntertwinerMap
+                s2PMap = IntertwinerMetric.buildSym2ProjectorMap
+                s3IMap = IntertwinerSym3.buildSym3IntertwinerMap
 
 areaPDE1Part1Inner :: (Fractional a, Eq a) => Map.Map (IGDown, IGUp, ISUp, ISDown) a -> ISUp -> ISDown -> PDE a
 areaPDE1Part1Inner areaIntMap m n = foldl' addPDEs (emptyPDE firstDimension) $

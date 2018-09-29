@@ -20,20 +20,28 @@ source-repository head
   type:             git
   location:         git://github.com/nilsalex/diffeo-involutizer
 
-executable diffeo-involutizer
-  main-is:             Main.hs
-  other-modules:       DiffeoEquationsArea, IntertwinerArea, IntertwinerMetric, IntertwinerSym3,
-                       MultiIndex, PDE, PDEProlongation, TriangleMap
-  ghc-options:         -Wall
-  build-depends:       base >=4.10 && <=4.11.1.0, containers >=0.6, random, QuickCheck
+library
+  exposed-modules:     DiffeoEquationsArea, DiffeoEquationsMetric, IntertwinerArea, IntertwinerMetric,
+                       IntertwinerSym3, MultiIndex, PDE, PDEProlongation, TriangleMap, Index,
+                       QuickChecks, DiffeoInvolutizer, PDEProlongationTest, Tests
+  build-depends:       base >=4.10 && <5, containers >=0.6, random, QuickCheck
   hs-source-dirs:      src
   default-language:    Haskell2010
 
+executable run
+  main-is:             Main.hs
+  build-depends:       base >=4.10 && <5, diffeo-involutizer
+  hs-source-dirs:      src-exec
+  default-language:    Haskell2010
+
 executable quickchecks
-  main-is:             QuickChecks.hs
-  -- other-modules:       
-  -- other-extensions:    
-  ghc-options:         -Wall
-  build-depends:       base >=4.10 && <=4.11.1.0, containers >=0.6, random, QuickCheck
-  hs-source-dirs:      src
+  main-is:             Main.hs
+  build-depends:       base >=4.10 && <5, diffeo-involutizer
+  hs-source-dirs:      testsuite/quickchecks
+  default-language:    Haskell2010
+
+executable tests
+  main-is:             Main.hs
+  build-depends:       base >=4.10 && <5, diffeo-involutizer
+  hs-source-dirs:      testsuite/tests
   default-language:    Haskell2010

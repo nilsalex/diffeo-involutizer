@@ -5,6 +5,7 @@ module MultiIndex where
 import Test.QuickCheck
 import qualified Data.IntMap.Strict as IM
 import qualified Data.Map.Strict as M
+import Data.Foldable
 
 data MultiIndex = MIx Int Int (IM.IntMap Int) deriving (Show, Eq)
 
@@ -24,6 +25,9 @@ instance Arbitrary MultiIndex where
 
 mIxLength :: MultiIndex -> Int
 mIxLength (MIx len _ _) = len
+
+mIxOrder :: MultiIndex -> Int
+mIxOrder (MIx _ order _) = order
 
 genMIx :: Int -> Gen MultiIndex
 genMIx len = do
@@ -113,6 +117,14 @@ toFirstSecond tMap (MIx len order indexMap)
                                                             (i, 2):[] -> (i, i)
                                                             (i, 1):(j, 1):[] -> (i, j)
                                                             _ -> undefined)
+                        | otherwise = undefined
+
+toSecond :: M.Map (Int, Int) Int -> MultiIndex -> Int
+toSecond tMap (MIx len order indexMap)
+                        | order == 2 = tMap M.! case (IM.toList indexMap) of
+                                                     (i, 2):[] -> (i, i)
+                                                     (i, 1):(j, 1):[] -> (i, j)
+                                                     _ -> undefined
                         | otherwise = undefined
 
 prettyMIx :: MultiIndex -> String

@@ -11,6 +11,7 @@ import Control.Monad
 import qualified Data.IntMap.Strict as IM
 import qualified Data.Map.Strict as M
 import qualified Data.Sequence as S
+import Data.Foldable
 
 data Coefficient a = Null | Constant a | Affine a (IM.IntMap a) deriving (Show, Eq, Ord)
 
@@ -108,14 +109,29 @@ prettyCoefficient Null = "0"
 prettyCoefficient (Constant c) = show c
 prettyCoefficient (Affine 0 imap) = let parentheses = IM.size imap > 1 in
                                         (if parentheses then "(" else "") ++
-                                            (prettyCoefficientLinear 3 imap) ++
+                                            (prettyCoefficientLinear imap) ++
                                             (if parentheses then ")" else "")
-prettyCoefficient (Affine c imap) = "(" ++ show c ++ (prettyCoefficientLinear 0 imap) ++ ")"
+prettyCoefficient (Affine c imap) = "(" ++ show c ++ (prettyCoefficientLinearWithSign imap) ++ ")"
 
+prettyCoefficientWithSign :: (Show a, Num a, Eq a, Ord a) => Coefficient a -> String
+prettyCoefficientWithSign Null = " + 0"
+prettyCoefficientWithSign (Constant c)
+        | c < 0 = " - " ++ show (abs c)
+        | c > 0 = " + " ++ show c
+prettyCoefficientWithSign (Affine 0 imap) = if IM.size imap == 1 then prettyCoefficientLinearWithSign imap
+                                                                 else " + (" ++ prettyCoefficientLinear imap ++ ")"
+prettyCoefficientWithSign (Affine c imap) = " + (" ++ show c ++ (prettyCoefficientLinearWithSign imap) ++ ")"
 
-prettyCoefficientLinear :: (Show a, Num a, Ord a) => Int -> IM.IntMap a -> String
-prettyCoefficientLinear d = drop d . IM.foldMapWithKey (\i c -> (if signum c < 0 then " - " else " + ") ++ show (abs c)
-                                                                ++ " x_" ++ show (i+1))
+prettyCoefficientLinearWithSign :: (Show a, Num a, Ord a) => IM.IntMap a -> String
+prettyCoefficientLinearWithSign = IM.foldMapWithKey (\i c -> (if signum c < 0 then " - " else " + ") ++ show (abs c) ++ " x_" ++ show (i+1))
+
+prettyCoefficientLinear :: (Show a, Num a, Ord a) => IM.IntMap a -> String
+prettyCoefficientLinear imap = let (Just (_, c)) = IM.lookupMin imap
+                                   dropFun = if c < 0 then drop 1
+                                                        else drop 3
+                               in dropFun $
+                                  IM.foldMapWithKey (\i c -> (if signum c < 0 then " - " else " + ") ++ show (abs c) ++ " x_" ++ show (i+1)) $
+                                  imap
 
 emptyPDE :: Num a => Int -> PDE a
 emptyPDE ideps
@@ -145,6 +161,15 @@ prop_pdeFromMap = forAll genPDEMap $ (\(ideps, pdeMap) -> pdeConstraint $ pdeFro
 fromPDESys :: Num a => PDESystem a -> S.Seq (PDE a)
 fromPDESys (PDESys _ sysSeq) = sysSeq
 
+pdeFromConstDep :: (Num a, Eq a) => Int -> a -> PDE a
+pdeFromConstDep ideps 0 = emptyPDE ideps
+pdeFromConstDep ideps c = pdeFromMap ideps $ M.fromList [(empty ideps, coeffFromConst c)]
+
+prop_pdeFromConstDep :: Property
+prop_pdeFromConstDep = forAll
+                       ((arbitrary :: Gen (Int, Int)) `suchThat` \(ideps, _) -> ideps > 0) $
+                       \(ideps, c) -> pdeConstraint $ pdeFromConstDep ideps c
+
 pdeFromConstIdepDerivative :: (Num a, Eq a) => Int -> a -> Int -> Int -> PDE a
 pdeFromConstIdepDerivative ideps 0 _ _ = pdeFromMap ideps M.empty
 pdeFromConstIdepDerivative ideps c i d = pdeFromMap ideps $ M.singleton (single ideps d) (coeffFromConstIdep c i)
@@ -158,10 +183,10 @@ prop_pdeFromConstIdepDerivative = forAll
                                                                                                            d < ideps) $
                                   \(ideps, c, i, d) -> pdeConstraint $ pdeFromConstIdepDerivative ideps c i d
 
-getPDEMap :: Num a => PDE a -> M.Map MultiIndex (Coefficient a)
+getPDEMap :: PDE a -> M.Map MultiIndex (Coefficient a)
 getPDEMap (PDECons _ pdeMap) = pdeMap
 
-getIdeps :: Num a => PDE a -> Int
+getIdeps :: PDE a -> Int
 getIdeps (PDECons ideps _) = ideps
 
 addPDEs :: (Num a, Eq a) => PDE a -> PDE a -> PDE a
@@ -177,8 +202,43 @@ prop_addPDEs = forAll (do len <- choose (1, 50)
                $ \(pde1, pde2) -> let pdeSum = addPDEs pde1 pde2
                                   in pdeConstraint pdeSum
 
+maybeCoeffToConstant :: (Num a) => Maybe (Coefficient a) -> a
+maybeCoeffToConstant Nothing = 0
+maybeCoeffToConstant (Just Null) = 0
+maybeCoeffToConstant (Just (Constant c)) = c
+maybeCoeffToConstant _ = undefined
+
+pdeToConstList :: (Num a) => PDE a -> [a]
+pdeToConstList (PDECons ideps pdeMap) = map (\idep -> let coeff = M.lookup (single ideps idep) pdeMap
+                                                      in maybeCoeffToConstant coeff) [0..ideps-1]
+
+pdeSystemToConstMatrix :: (Num a) => PDESystem a -> [[a]]
+pdeSystemToConstMatrix (PDESys _ pdeSeq) = map pdeToConstList $ toList pdeSeq
+
+pdeOrder :: PDE a -> Int
+pdeOrder = M.foldlWithKey (\order mIx _ -> max order (mIxOrder mIx)) 0 . getPDEMap
+
+pdeMinOrder :: PDE a -> Int
+pdeMinOrder = M.foldlWithKey (\order mIx _ -> min order (mIxOrder mIx)) 999 . getPDEMap
+
+pdeSystemOrder :: PDESystem a -> Int
+pdeSystemOrder = foldl (\order pde -> max order (pdeOrder pde)) 0 . getPDESequence
+
+pdeSystemMinOrder :: PDESystem a -> Int
+pdeSystemMinOrder = foldl (\order pde -> min order (pdeMinOrder pde)) 999 . getPDESequence
+
+pdeSymbol :: PDE a -> PDE a
+pdeSymbol pde@(PDECons ideps pdeMap) = let order = pdeOrder pde
+                                       in PDECons ideps $ M.filterWithKey (\mIx _ -> mIxOrder mIx == order) pdeMap
+
+pdeSystemSymbol :: PDESystem a -> PDESystem a
+pdeSystemSymbol pdeSys@(PDESys ideps pdeSeq) = let order = pdeSystemOrder pdeSys
+                                                   subSeq = S.filter (\pde -> pdeOrder pde == order) pdeSeq
+                                               in PDESys ideps $ fmap pdeSymbol subSeq
+
 prettyPDE :: (Num a, Eq a, Show a, Ord a) => PDE a -> String
-prettyPDE = drop 3 . (++ "\n") . M.foldMapWithKey (\mIx coeff -> " + " ++ (prettyCoefficient coeff) ++ " " ++ (prettyMIx mIx)) . getPDEMap
+prettyPDE pde = let (x:y:z:xs) = M.foldMapWithKey (\mIx coeff -> (prettyCoefficientWithSign coeff) ++ " " ++ (prettyMIx mIx)) (getPDEMap pde) ++ "\n"
+                in if y == '+' then xs else y:z:xs
 
 getPDESequence :: PDESystem a -> S.Seq (PDE a)
 getPDESequence (PDESys _ pdeSeq) = pdeSeq
@@ -195,7 +255,7 @@ concatPDESystems (PDESys i1 ps1) (PDESys i2 ps2)
                     | otherwise = PDESys i1 $ ps1 S.>< ps2
 
 buildRandomIdepsMap :: (Num a, Eq a, RandomGen r) => r -> Int -> M.Map Int a
-buildRandomIdepsMap gen ideps = M.fromList $ zip [0..ideps-1] $ map fromIntegral $ (randoms gen :: [Int])
+buildRandomIdepsMap gen ideps = M.fromList $ zip [0..ideps-1] $ map fromIntegral $ (randomRs (-500, 500) gen :: [Integer])
 
 evalCoefficientRand :: (Num a, Eq a) => M.Map Int a -> Coefficient a -> Coefficient a
 evalCoefficientRand _ Null = Null
@@ -211,14 +271,18 @@ evalPDESystemRand gen (PDESys ideps pdesys) = PDESys ideps $ fmap (evalPDERand (
 
 prettyPDEMatrix :: (Num a, Eq a, Show a, Ord a) => PDESystem a -> String
 prettyPDEMatrix (PDESys ideps pdeSequence) = let tMap = buildTriangleMap ideps
-                                             in S.foldMapWithIndex (prettyPDEMatrixRow tMap) pdeSequence
+                                             in S.foldMapWithIndex (prettyPDEMatrixRow $ toZerothFirstSecond tMap) pdeSequence
 
-prettyPDEMatrixRow :: (Num a, Eq a, Show a, Ord a) => M.Map (Int, Int) Int -> Int -> PDE a -> String
-prettyPDEMatrixRow tMap eqnum (PDECons _ pdeMap) = M.foldMapWithKey
+prettyPDEMatrixSecond :: (Num a, Eq a, Show a, Ord a) => PDESystem a -> String
+prettyPDEMatrixSecond (PDESys ideps pdeSequence) = let tMap = buildTriangleMap ideps
+                                                   in S.foldMapWithIndex (prettyPDEMatrixRow $ toSecond tMap) pdeSequence
+
+prettyPDEMatrixRow :: (Num a, Eq a, Show a, Ord a) => (MultiIndex -> Int) -> Int -> PDE a -> String
+prettyPDEMatrixRow f eqnum (PDECons _ pdeMap) = M.foldMapWithKey
                                                         (\mIx coeff -> "(" ++
                                                                        show (eqnum+1) ++
                                                                        ", " ++
-                                                                       show (toZerothFirstSecond tMap mIx + 1) ++
+                                                                       show (f mIx + 1) ++
                                                                        ") = " ++
                                                                        prettyCoefficient coeff ++
                                                                        "\n")

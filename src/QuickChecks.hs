@@ -1,8 +1,10 @@
+module QuickChecks (qcmain) where
+
 import MultiIndex
 import PDE
 import Test.QuickCheck
 
-main :: IO Bool
-main = do
-        runMIxTests
-        runPDETests
+qcmain :: IO Bool
+qcmain = do
+          runMIxTests
+          runPDETests

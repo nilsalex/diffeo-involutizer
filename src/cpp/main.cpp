@@ -3,9 +3,11 @@
 #include <sstream>
 
 #include <Eigen/Sparse>
+#include <Eigen/SPQRSupport>
 
 int main() {
-  Eigen::SparseMatrix<double> sm1(42840, 49770);
+  Eigen::SparseMatrix<double> sm1(3, 3);
+  /*
   sm1.reserve(3000000);
 
   {
@@ -28,18 +30,25 @@ int main() {
   
       std::getline(ifile, substr);
       v = std::stod(substr);
-  
+
       tripletList.push_back(Eigen::Triplet<double>(i, j, v));
     }
 
     sm1.setFromTriplets(tripletList.begin(), tripletList.end());
   }
+  */
 
-  Eigen::SparseQR<Eigen::SparseMatrix<double>, Eigen::COLAMDOrdering<int>> qr;
-  qr.compute(sm1);
+  std::vector<Eigen::Triplet<double>> tripletList = {
+    {0, 0, 5},
+    {1, 1, 3},
+  };
 
-  std::cout << "info : " << qr.info() << std::endl;
-  std::cout << "rank : " << qr.rank() << std::endl;
+  sm1.setFromTriplets(tripletList.begin(), tripletList.end());
+
+  Eigen::SPQR<Eigen::SparseMatrix<double>> spqr(sm1);
+
+  std::cout << "info : " << spqr.info() << std::endl;
+  std::cout << "rank : " << spqr.rank() << std::endl;
 
   return 0;
 }
