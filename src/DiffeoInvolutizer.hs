@@ -1,26 +1,25 @@
 module DiffeoInvolutizer (dimain) where
 
-import Polynomial
-import IntertwinerMetric
+import PDE
+import PDEProlongation
+import DiffeoEquationsArea
 
-{-
+import IntertwinerMetric
+import Polynomial
+
+import System.Random
+
 getPDE :: PDESystem Rational
-getPDE = metricPDE
--}
+getPDE = areaPDE
 
 dimain :: IO ()
-dimain = putStr $ prettyPolynomial (metricDeterminant :: Polynomial Rational)
+dimain = do
 {-
           gen <- getStdGen
           let pde = getPDE
-          let prolonged = systemProlongations pde
-          let symbol = pdeSystemSymbol prolonged
-          let eval = evalPDESystemRand gen symbol
+          let pro = systemProlongations pde
+          putStr $ prettyPDESystem pro
 -}
-{-          
-          putStrLn $ prettyPDEMatrixSecond eval
-          let eval = evalPDESystemRand gen symbol
-          print $ pdeSystemMinOrder eval
-          print $ pdeSystemOrder eval
-          putStr $ prettyPDEMatrixSecond eval
-          -}
+          let ricci = addPolynomials ricci1 ricci2 :: Polynomial Rational
+--          let ricci = ricci1 :: Polynomial Rational
+          putStr $ prettyPolynomialMetric ricci

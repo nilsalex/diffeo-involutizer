@@ -1,5 +1,6 @@
 module IntertwinerMetric where
 
+import Control.Parallel
 import Data.Foldable
 import Data.Maybe
 import qualified Data.Map.Strict as Map
@@ -207,3 +208,112 @@ metricDeterminant = let epsilon = buildMetricEpsilonMap
                          metricRangeUp <*>
                          metricRangeUp <*>
                          metricRangeUp
+
+ricciIntertwiner1 :: Fractional a => Map.Map (IS2Up, (ISDown, ISDown)) a ->
+                                     IGUp -> IS2Up -> IGDown -> IGDown -> a
+ricciIntertwiner1 imap (IGUp gA) (IS2Up gB) (IGDown gC) (IGDown gD)
+                    = sum $
+                      (\a b c d -> let iabA = imap Map.! (IS2Up gA, (ISDown a, ISDown b))
+                                       icdB = imap Map.! (IS2Up gB, (ISDown c, ISDown d))
+                                       iabC = imap Map.! (IS2Up gC, (ISDown a, ISDown b))
+                                       icdD = imap Map.! (IS2Up gD, (ISDown c, ISDown d))
+                                       iacC = imap Map.! (IS2Up gC, (ISDown a, ISDown c))
+                                       ibdD = imap Map.! (IS2Up gD, (ISDown b, ISDown d))
+                                   in (-1) * iabA * icdB * iabC * icdD + iabA * icdB * iacC * ibdD)
+                           <$>
+                           spacetimeRange <*>
+                           spacetimeRange <*>
+                           spacetimeRange <*>
+                           spacetimeRange
+
+buildRicciIntertwiner1Map :: Fractional a => Map.Map (IGUp, IS2Up, IGDown, IGDown) a
+buildRicciIntertwiner1Map = Map.fromList $
+                            (\gA gB gC gD -> ((gA, gB, gC, gD), ricciIntertwiner1 imap gA gB gC gD))
+                            <$> metricRangeUp <*>
+                                sym2RangeUp <*>
+                                metricRangeDown <*>
+                                metricRangeDown
+                            where imap = buildSym2IntertwinerMap
+
+ricciIntertwiner2 :: Fractional a => Map.Map (IS2Up, (ISDown, ISDown)) a ->
+                                     IGUp -> IGUp -> ISUp -> ISUp ->
+                                     IGDown -> IGDown -> IGDown -> a
+ricciIntertwiner2 imap (IGUp gA) (IGUp gB) (ISUp a) (ISUp b)
+                       (IGDown gC) (IGDown gD) (IGDown gE)
+                    = sum $
+                      (\a b c d e f -> let icdA = imap Map.! (IS2Up gA, (ISDown c, ISDown d))
+                                           iefB = imap Map.! (IS2Up gB, (ISDown e, ISDown f))
+                                           iabC = imap Map.! (IS2Up gC, (ISDown a, ISDown b))
+                                           icdD = imap Map.! (IS2Up gD, (ISDown c, ISDown d))
+                                           iefE = imap Map.! (IS2Up gE, (ISDown e, ISDown f))
+                                           iceD = imap Map.! (IS2Up gD, (ISDown c, ISDown e))
+                                           idfE = imap Map.! (IS2Up gE, (ISDown d, ISDown f))
+                                           iacC = imap Map.! (IS2Up gC, (ISDown a, ISDown c))
+                                           ibdD = imap Map.! (IS2Up gD, (ISDown b, ISDown d))
+                                           ideD = imap Map.! (IS2Up gD, (ISDown d, ISDown e))
+                                           ibfE = imap Map.! (IS2Up gE, (ISDown b, ISDown f))
+                                           iaeC = imap Map.! (IS2Up gC, (ISDown a, ISDown e))
+                                           ibcD = imap Map.! (IS2Up gD, (ISDown b, ISDown c))
+                                       in icdA * iefB *
+                                          ( (-1/4) * iabC * icdD * iefE
+                                          +  (3/4) * iabC * iceD * idfE
+                                          +          iacC * ibdD * iefE
+                                          -          iacC * ideD * ibfE
+                                          -  (1/2) * iaeC * ibcD * idfE))
+                           <$>
+                           spacetimeRange <*>
+                           spacetimeRange <*>
+                           spacetimeRange <*>
+                           spacetimeRange <*>
+                           spacetimeRange <*>
+                           spacetimeRange
+
+buildRicciIntertwiner2Map :: Fractional a => Map.Map (IGUp, IGUp, ISUp, ISUp, IGDown, IGDown, IGDown) a
+buildRicciIntertwiner2Map = Map.fromList $
+                            (\gA gB a b gC gD gE-> ((gA, gB, a, b, gC, gD, gE),
+                                                    ricciIntertwiner2 imap gA gB a b gC gD gE))
+                            <$> metricRangeUp <*>
+                                metricRangeUp <*>
+                                spacetimeRangeUp <*>
+                                spacetimeRangeUp <*>
+                                metricRangeDown <*>
+                                metricRangeDown <*>
+                                metricRangeDown
+                            where imap = buildSym2IntertwinerMap
+
+ricci1 :: (Fractional a, Eq a) => Polynomial a
+ricci1 = foldl' addPolynomials (emptyPolynomial 160) $
+         catMaybes $
+         (\gA@(IGUp a) gB@(IS2Up b) gC@(IGDown c) gD@(IGDown d) ->
+                let coefficient = ricciIntertwiner1 imap gA gB gC gD
+                in if coefficient == 0 then Nothing
+                                       else Just $ monomial 160 [50+10*a+b, 150+c, 150+d] coefficient)
+         <$> metricRangeUp <*>
+             sym2RangeUp <*>
+             metricRangeDown <*>
+             metricRangeDown
+      where imap = buildSym2IntertwinerMap
+
+ricci2 :: (Fractional a, Eq a) => Polynomial a
+ricci2 = let a = ricci2p $ map IGUp [0, 1]
+             b = ricci2p $ map IGUp [2, 3]
+             c = ricci2p $ map IGUp [4, 5]
+             d = ricci2p $ map IGUp [6, 7]
+             e = ricci2p $ map IGUp [8, 9]
+         in a `par` b `par` c `par` d `par` e `pseq` addPolynomials (addPolynomials (addPolynomials (addPolynomials a b) c) d) e
+
+ricci2p :: (Fractional a, Eq a) => [IGUp] -> Polynomial a
+ricci2p range = foldl' addPolynomials (emptyPolynomial 160) $
+                catMaybes $
+                (\gA@(IGUp aA) gB@(IGUp bB) sA@(ISUp a) sB@(ISUp b) gC@(IGDown c) gD@(IGDown d) gE@(IGDown e) ->
+                       let coefficient = ricciIntertwiner2 imap gA gB sA sB gC gD gE
+                       in if coefficient == 0 then Nothing
+                                              else Just $ monomial 160 [10+4*aA+a, 10+4*bB+b, 150+c, 150+d, 150+e] coefficient)
+                <$> range <*>
+                    metricRangeUp <*>
+                    spacetimeRangeUp <*>
+                    spacetimeRangeUp <*>
+                    metricRangeDown <*>
+                    metricRangeDown <*>
+                    metricRangeDown
+             where imap = buildSym2IntertwinerMap
