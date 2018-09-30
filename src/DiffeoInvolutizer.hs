@@ -1,23 +1,24 @@
 module DiffeoInvolutizer (dimain) where
 
-import PDE
-import PDEProlongation
-import DiffeoEquationsMetric
+import Polynomial
+import IntertwinerMetric
 
-import System.Random
-
+{-
 getPDE :: PDESystem Rational
 getPDE = metricPDE
+-}
 
 dimain :: IO ()
-dimain = do
+dimain = putStr $ prettyPolynomial (metricDeterminant :: Polynomial Rational)
+{-
           gen <- getStdGen
           let pde = getPDE
           let prolonged = systemProlongations pde
           let symbol = pdeSystemSymbol prolonged
           let eval = evalPDESystemRand gen symbol
-          putStrLn $ prettyPDEMatrixSecond eval
+-}
 {-          
+          putStrLn $ prettyPDEMatrixSecond eval
           let eval = evalPDESystemRand gen symbol
           print $ pdeSystemMinOrder eval
           print $ pdeSystemOrder eval

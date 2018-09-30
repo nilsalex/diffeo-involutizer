@@ -1,7 +1,10 @@
 module IntertwinerMetric where
 
+import Data.Foldable
+import Data.Maybe
 import qualified Data.Map.Strict as Map
 import Index
+import Polynomial
 
 type MetricIndices     = (Int, Int)
 type MetricIndicesUp   = (ISUp, ISUp)
@@ -141,3 +144,66 @@ buildSym2ProjectorMap = Map.fromList $ let indicesMap = buildMetricIndicesMap in
                                          n <- spacetimeRangeUp
                                          return (((m, n), a), sym2Projector indicesMap (m, n) a)
 
+permutations :: Num a => [((ISDown, ISDown, ISDown, ISDown), a)]
+permutations = [
+                 ((ISDown 0, ISDown 1, ISDown 2, ISDown 3), -1),
+                 ((ISDown 0, ISDown 1, ISDown 3, ISDown 2), 1),
+                 ((ISDown 0, ISDown 2, ISDown 1, ISDown 3), 1),
+                 ((ISDown 0, ISDown 2, ISDown 3, ISDown 1), -1),
+                 ((ISDown 0, ISDown 3, ISDown 1, ISDown 2), -1),
+                 ((ISDown 0, ISDown 3, ISDown 2, ISDown 1), 1),
+                 ((ISDown 1, ISDown 0, ISDown 2, ISDown 3), 1),
+                 ((ISDown 1, ISDown 0, ISDown 3, ISDown 2), -1),
+                 ((ISDown 1, ISDown 2, ISDown 0, ISDown 3), -1),
+                 ((ISDown 1, ISDown 2, ISDown 3, ISDown 0), 1),
+                 ((ISDown 1, ISDown 3, ISDown 0, ISDown 2), 1),
+                 ((ISDown 1, ISDown 3, ISDown 2, ISDown 0), -1),
+                 ((ISDown 2, ISDown 0, ISDown 1, ISDown 3), -1),
+                 ((ISDown 2, ISDown 0, ISDown 3, ISDown 1), 1),
+                 ((ISDown 2, ISDown 1, ISDown 0, ISDown 3), 1),
+                 ((ISDown 2, ISDown 1, ISDown 3, ISDown 0), -1),
+                 ((ISDown 2, ISDown 3, ISDown 0, ISDown 1), -1),
+                 ((ISDown 2, ISDown 3, ISDown 1, ISDown 0), 1),
+                 ((ISDown 3, ISDown 0, ISDown 1, ISDown 2), 1),
+                 ((ISDown 3, ISDown 0, ISDown 2, ISDown 1), -1),
+                 ((ISDown 3, ISDown 1, ISDown 0, ISDown 2), -1),
+                 ((ISDown 3, ISDown 1, ISDown 2, ISDown 0), 1),
+                 ((ISDown 3, ISDown 2, ISDown 0, ISDown 1), 1),
+                 ((ISDown 3, ISDown 2, ISDown 1, ISDown 0), -1)
+               ]
+
+metricEpsilonIntertwiner :: Fractional a => Map.Map (IS2Up, (ISDown, ISDown)) a ->
+                                            IGUp -> IGUp -> IGUp -> IGUp
+                                            -> a
+metricEpsilonIntertwiner imap gA gB gC gD = sum $(\((a, b, c, d), f1) ((p, q, r, s), f2) ->
+                                                    (1/24) * f1 * f2 *
+                                                    (imap Map.! (fromIGUp gA, (a, p))) *
+                                                    (imap Map.! (fromIGUp gB, (b, q))) *
+                                                    (imap Map.! (fromIGUp gC, (c, r))) *
+                                                    (imap Map.! (fromIGUp gD, (d, s)))
+                                                   ) <$>
+                                                     permutations <*>
+                                                     permutations
+
+buildMetricEpsilonMap :: Fractional a => Map.Map (IGUp, IGUp, IGUp, IGUp) a
+buildMetricEpsilonMap = Map.fromList $ let intertwinerMap = buildSym2IntertwinerMap
+                                       in (\a b c d ->
+                                            ((a, b, c, d), metricEpsilonIntertwiner intertwinerMap a b c d)) <$>
+                                              metricRangeUp <*>
+                                              metricRangeUp <*>
+                                              metricRangeUp <*>
+                                              metricRangeUp
+
+metricDeterminant :: (Fractional a, Eq a) => Polynomial a
+metricDeterminant = let epsilon = buildMetricEpsilonMap
+                    in foldl' addPolynomials (emptyPolynomial 10) $
+                       catMaybes $
+                       (\a@(IGUp i) b@(IGUp j) c@(IGUp k) d@(IGUp l)
+                                 -> let coefficient = epsilon Map.! (a, b, c, d)
+                                    in if coefficient == 0 then Nothing
+                                                           else Just $ quartic 10 i j k l coefficient)
+                       <$>
+                         metricRangeUp <*>
+                         metricRangeUp <*>
+                         metricRangeUp <*>
+                         metricRangeUp

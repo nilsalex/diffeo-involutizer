@@ -22,7 +22,7 @@ source-repository head
 
 library
   exposed-modules:     DiffeoEquationsArea, DiffeoEquationsMetric, IntertwinerArea, IntertwinerMetric,
-                       IntertwinerSym3, MultiIndex, PDE, PDEProlongation, TriangleMap, Index,
+                       IntertwinerSym3, MultiIndex, PDE, PDEProlongation, TriangleMap, Index, Polynomial
                        QuickChecks, DiffeoInvolutizer, PDEProlongationTest, Tests
   build-depends:       base >=4.10 && <5, containers >=0.6, random, QuickCheck
   hs-source-dirs:      src
