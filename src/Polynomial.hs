@@ -29,10 +29,12 @@ prettyMonomial (MIx _ _ imap) = drop 3 $ IM.foldMapWithKey (\v p -> " * x_" ++ s
                                                                                                   else "") imap
 
 prettyMonomialMetric :: MultiIndex -> String
-prettyMonomialMetric (MIx _ _ imap) = drop 3 $ IM.foldMapWithKey (\v p -> if v < 150 then " * x_" ++ show (v + 1)
-                                                                                     else " * y_" ++ show (v + 1 - 150)
-                                                                          ++ if p > 1 then "^" ++ show p
-                                                                             else "") imap
+prettyMonomialMetric (MIx _ _ imap) = drop 3 $ IM.foldMapWithKey (\v p -> (if v < 150 then " * x_" ++ show (v + 1)
+                                                                                      else " * y_" ++ show (v + 1 - 150))
+                                                                          ++
+                                                                          (if p > 1 then "^" ++ show p
+                                                                                    else ""))
+                                                                 imap
 
 prettyPolynomial :: Show a => Polynomial a -> String
 prettyPolynomial (Polynomial len pmap) = M.foldMapWithKey

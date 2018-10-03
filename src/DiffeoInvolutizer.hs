@@ -21,5 +21,4 @@ dimain = do
           putStr $ prettyPDESystem pro
 -}
           let ricci = addPolynomials ricci1 ricci2 :: Polynomial Rational
---          let ricci = ricci1 :: Polynomial Rational
           putStr $ prettyPolynomialMetric ricci
