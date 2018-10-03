@@ -5,6 +5,8 @@ import qualified IntertwinerArea
 import qualified IntertwinerMetric
 import qualified IntertwinerSym3
 import Index
+import Control.Parallel.Strategies
+
 import Data.List (foldl')
 import Data.Maybe
 import qualified Data.Map.Strict as Map
@@ -77,29 +79,50 @@ firstRange :: [Int]
 firstRange = [0..firstDimension - 1]
 
 areaPDE :: (Fractional a, Eq a) => PDESystem a
-areaPDE = PDESys firstDimension $ S.fromList $
-           ((\m n -> let pde1 = areaPDE1Part1Inner aIMap m n
-                         pde2 = areaPDE1Part2Inner aIMap m n
-                         pde3 = areaPDE1Part3Inner aIMap mIMap m n
-                           in if (deltaS m n == (1 :: Int)) then addPDEs (addPDEs (addPDEs pde1 pde2) pde3)
-                                                                (pdeFromConstDep firstDimension 1)
-                                                          else addPDEs (addPDEs pde1 pde2) pde3)
-             <$> spacetimeRangeUp <*> spacetimeRangeDown)
-           ++
-           ((\k n -> let pde1 = areaPDE2Part1Inner aIMap s2IMap k n
-                         pde2 = areaPDE2Part2Inner aIMap mIMap k n
-                         pde3 = areaPDE2Part3Inner k n
-                     in addPDEs (addPDEs pde1 pde2) pde3)
-             <$> spacetimeSecondRangeUp <*> spacetimeRangeDown)
-           ++
-           ((\k n -> areaPDE3Inner aIMap s2PMap s3IMap k n)
-             <$> spacetimeThirdRangeUp <*> spacetimeRangeDown)
+areaPDE = runEval $
+          do
+            pde3' <- parTraversable rpar pde3
+            return $ PDESys firstDimension $
+                             pde1 S.><
+                             pde2 S.><
+                             pde3'
            where
                aIMap = IntertwinerArea.buildAreaIntertwinerMap
                mIMap = IntertwinerMetric.buildMetricIntertwinerMap
                s2IMap = IntertwinerMetric.buildSym2IntertwinerMap
                s2PMap = IntertwinerMetric.buildSym2ProjectorMap
                s3IMap = IntertwinerSym3.buildSym3IntertwinerMap
+               pde1 = areaPDE1 aIMap mIMap
+               pde2 = areaPDE2 aIMap mIMap s2IMap
+               pde3 = areaPDE3 aIMap s2PMap s3IMap
+
+areaPDE1 :: (Fractional a, Eq a) => Map.Map (IGDown, IGUp, ISUp, ISDown) a ->
+                                    Map.Map (IGDown, IGUp, ISUp, ISDown) a ->
+                                    S.Seq (PDE a)
+areaPDE1 aIMap mIMap = (\m n -> let pde1 = areaPDE1Part1Inner aIMap m n
+                                    pde2 = areaPDE1Part2Inner aIMap m n
+                                    pde3 = areaPDE1Part3Inner aIMap mIMap m n
+                                in if (deltaS m n == (1 :: Int)) then addPDEs (addPDEs (addPDEs pde1 pde2) pde3)
+                                                                              (pdeFromConstDep firstDimension 1)
+                                                                 else addPDEs (addPDEs pde1 pde2) pde3)
+                       <$> (S.fromList spacetimeRangeUp) <*> (S.fromList spacetimeRangeDown)
+
+areaPDE2 :: (Fractional a, Eq a) => Map.Map (IGDown, IGUp, ISUp, ISDown) a ->
+                                    Map.Map (IGDown, IGUp, ISUp, ISDown) a ->
+                                    Map.Map (IS2Up, (ISDown, ISDown)) a ->
+                                    S.Seq (PDE a)
+areaPDE2 aIMap mIMap s2IMap = (\k n -> let pde1 = areaPDE2Part1Inner aIMap s2IMap k n
+                                           pde2 = areaPDE2Part2Inner aIMap mIMap k n
+                                           pde3 = areaPDE2Part3Inner k n
+                                       in addPDEs (addPDEs pde1 pde2) pde3)
+                              <$> (S.fromList spacetimeSecondRangeUp) <*> (S.fromList spacetimeRangeDown)
+
+areaPDE3 :: (Fractional a, Eq a) => Map.Map (IGDown, IGUp, ISUp, ISDown) a ->
+                                    Map.Map ((ISUp, ISUp), IS2Down) a ->
+                                    Map.Map (IS3Up, (ISDown, ISDown, ISDown)) a ->
+                                    S.Seq (PDE a)
+areaPDE3 aIMap s2PMap s3IMap = (\k n -> areaPDE3Inner aIMap s2PMap s3IMap k n)
+                               <$> (S.fromList spacetimeThirdRangeUp) <*> (S.fromList spacetimeRangeDown)
 
 areaPDE1Part1Inner :: (Fractional a, Eq a) => Map.Map (IGDown, IGUp, ISUp, ISDown) a -> ISUp -> ISDown -> PDE a
 areaPDE1Part1Inner areaIntMap m n = foldl' addPDEs (emptyPDE firstDimension) $

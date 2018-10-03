@@ -31,7 +31,7 @@ library
 executable run
   main-is:             Main.hs
   build-depends:       base >=4.10 && <5, diffeo-involutizer
-  ghc-options:         -threaded
+  ghc-options:         -threaded -rtsopts
   hs-source-dirs:      src-exec
   default-language:    Haskell2010
 

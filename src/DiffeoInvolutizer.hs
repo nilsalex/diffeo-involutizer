@@ -14,11 +14,5 @@ getPDE = areaPDE
 
 dimain :: IO ()
 dimain = do
-{-
-          gen <- getStdGen
           let pde = getPDE
-          let pro = systemProlongations pde
-          putStr $ prettyPDESystem pro
--}
-          let ricci = addPolynomials ricci1 ricci2 :: Polynomial Rational
-          putStr $ prettyPolynomialMetric ricci
+          putStr $ prettyPDESystem pde
