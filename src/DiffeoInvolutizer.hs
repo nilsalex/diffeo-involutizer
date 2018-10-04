@@ -4,10 +4,7 @@ import PDE
 import PDEProlongation
 import DiffeoEquationsArea
 
-import IntertwinerMetric
-import Polynomial
-
-import System.Random
+import System.Random.TF
 
 getPDE :: PDESystem Rational
 getPDE = areaPDE
@@ -15,4 +12,8 @@ getPDE = areaPDE
 dimain :: IO ()
 dimain = do
           let pde = getPDE
-          putStr $ prettyPDESystem pde
+          let pro = systemProlongations pde
+          let full = concatPDESystems pde pro
+          gen <- newTFGen
+          let eval = evalPDESystemRand gen full
+          putStr $ prettyPDEMatrix eval

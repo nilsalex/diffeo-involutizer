@@ -5,7 +5,8 @@ module PDE where
 import MultiIndex
 import TriangleMap
 
-import System.Random
+import System.Random.TF.Instances
+import System.Random.TF.Gen
 import Test.QuickCheck
 import Control.Monad
 import qualified Data.IntMap.Strict as IM
@@ -266,7 +267,7 @@ evalCoefficientRand randMap (Affine c imap) = let evaluated = (sum $ IM.mapWithK
 evalPDERand :: (Num a, Eq a) => M.Map Int a -> PDE a -> PDE a
 evalPDERand randMap pde = pdeFromMap (getIdeps pde) $ M.map (evalCoefficientRand randMap) $ getPDEMap pde
 
-evalPDESystemRand :: (Num a, Eq a) => StdGen -> PDESystem a -> PDESystem a
+evalPDESystemRand :: (Num a, Eq a, RandomGen b) => b -> PDESystem a -> PDESystem a
 evalPDESystemRand gen (PDESys ideps pdesys) = PDESys ideps $ fmap (evalPDERand (buildRandomIdepsMap gen ideps)) pdesys
 
 prettyPDEMatrix :: (Num a, Eq a, Show a, Ord a) => PDESystem a -> String
