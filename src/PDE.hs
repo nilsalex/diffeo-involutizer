@@ -258,17 +258,20 @@ concatPDESystems (PDESys i1 ps1) (PDESys i2 ps2)
 buildRandomIdepsMap :: (Num a, Eq a, RandomGen r) => r -> Int -> M.Map Int a
 buildRandomIdepsMap gen ideps = M.fromList $ zip [0..ideps-1] $ map fromIntegral $ (randomRs (-500, 500) gen :: [Integer])
 
-evalCoefficientRand :: (Num a, Eq a) => M.Map Int a -> Coefficient a -> Coefficient a
-evalCoefficientRand _ Null = Null
-evalCoefficientRand _ coeff@(Constant _) = coeff
-evalCoefficientRand randMap (Affine c imap) = let evaluated = (sum $ IM.mapWithKey (\i c' -> c' * (randMap M.! i)) imap) + c
-                                              in coeffFromConst evaluated
+evalCoefficient :: (Num a, Eq a) => M.Map Int a -> Coefficient a -> Coefficient a
+evalCoefficient _ Null = Null
+evalCoefficient _ coeff@(Constant _) = coeff
+evalCoefficient randMap (Affine c imap) = let evaluated = (sum $ IM.mapWithKey (\i c' -> c' * (randMap M.! i)) imap) + c
+                                          in coeffFromConst evaluated
 
-evalPDERand :: (Num a, Eq a) => M.Map Int a -> PDE a -> PDE a
-evalPDERand randMap pde = pdeFromMap (getIdeps pde) $ M.map (evalCoefficientRand randMap) $ getPDEMap pde
+evalPDE :: (Num a, Eq a) => M.Map Int a -> PDE a -> PDE a
+evalPDE randMap pde = pdeFromMap (getIdeps pde) $ M.map (evalCoefficient randMap) $ getPDEMap pde
+
+evalPDESystem :: (Num a, Eq a) => M.Map Int a -> PDESystem a -> PDESystem a
+evalPDESystem randMap (PDESys ideps pdesys) = PDESys ideps $ fmap (evalPDE randMap) pdesys
 
 evalPDESystemRand :: (Num a, Eq a, RandomGen b) => b -> PDESystem a -> PDESystem a
-evalPDESystemRand gen (PDESys ideps pdesys) = PDESys ideps $ fmap (evalPDERand (buildRandomIdepsMap gen ideps)) pdesys
+evalPDESystemRand gen pdesys@(PDESys ideps _) = evalPDESystem (buildRandomIdepsMap gen ideps) pdesys
 
 prettyPDEMatrix :: (Num a, Eq a, Show a, Ord a) => PDESystem a -> String
 prettyPDEMatrix (PDESys ideps pdeSequence) = let tMap = buildTriangleMap ideps

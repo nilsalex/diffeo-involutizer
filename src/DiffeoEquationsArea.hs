@@ -1,4 +1,4 @@
-module DiffeoEquationsArea (areaPDE) where
+module DiffeoEquationsArea (areaPDE, evalAreaAtEta) where
 
 import PDE
 import qualified IntertwinerArea
@@ -78,13 +78,21 @@ firstDimension = (1 + spacetimeDimension + spacetimeSecondDimension) * areaDimen
 firstRange :: [Int]
 firstRange = [0..firstDimension - 1]
 
+buildEtaEtaMap :: (Num a, Eq a) => Map.Map Int a
+buildEtaEtaMap = Map.fromList $ zip firstRange $ [-1, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, -1, 0, 0, 0, 1, 0, 0, 1, 0, 1] ++ repeat 0
+
+evalAreaAtEta :: (Num a, Eq a, Fractional a) => PDESystem a -> PDESystem a
+evalAreaAtEta = evalPDESystem buildEtaEtaMap
+
 areaPDE :: (Fractional a, Eq a) => PDESystem a
 areaPDE = runEval $
           do
+            pde1' <- parTraversable rpar pde1
+            pde2' <- parTraversable rpar pde2
             pde3' <- parTraversable rpar pde3
             return $ PDESys firstDimension $
-                             pde1 S.><
-                             pde2 S.><
+                             pde1' S.><
+                             pde2' S.><
                              pde3'
            where
                aIMap = IntertwinerArea.buildAreaIntertwinerMap
