@@ -99,15 +99,22 @@ fromList len = foldr (\i mIx -> addIndex i mIx) (empty len)
 prop_constraint :: MultiIndex -> Bool
 prop_constraint = mIxConstraint
 
-toZerothFirstSecond :: M.Map (Int, Int) Int -> MultiIndex -> Int
-toZerothFirstSecond tMap (MIx len order indexMap)
-                        | order == 0 = 0
-                        | order == 1 = 1 + (head $ IM.keys indexMap)
-                        | order == 2 = 1 + len + (tMap M.! case (IM.toList indexMap) of
-                                                            (i, 2):[] -> (i, i)
-                                                            (i, 1):(j, 1):[] -> (i, j)
-                                                            _ -> undefined)
-                        | otherwise = undefined
+toNum :: M.Map (Int, Int) Int -> M.Map (Int, Int, Int) Int -> MultiIndex -> Int
+toNum tMap tMap3 (MIx len order indexMap)
+           | order == 0 = 0
+           | order == 1 = 1 + (head $ IM.keys indexMap)
+           | order == 2 = 1 + len + (tMap M.! case (IM.toList indexMap) of
+                                               (i, 2):[] -> (i, i)
+                                               (i, 1):(j, 1):[] -> (i, j)
+                                               _ -> undefined)
+           | order == 3 = 1 + len + ((len * (len+1)) `div` 2)
+                            + (tMap3 M.! case (IM.toList indexMap) of
+                                              (i, 3):[] -> (i, i, i)
+                                              (i, 2):(j, 1):[] -> (i, i, j)
+                                              (i, 1):(j, 2):[] -> (i, j, j)
+                                              (i, 1):(j, 1):(k, 1):[] -> (i, j, k)
+                                              _ -> undefined)
+           | otherwise = undefined
 
 toFirstSecond :: M.Map (Int, Int) Int -> MultiIndex -> Int
 toFirstSecond tMap (MIx len order indexMap)

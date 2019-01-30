@@ -22,9 +22,9 @@ source-repository head
 
 library
   exposed-modules:     DiffeoEquationsArea, DiffeoEquationsMetric, IntertwinerArea, IntertwinerMetric,
-                       IntertwinerSym3, MultiIndex, PDE, PDEProlongation, TriangleMap, Index, Polynomial
-                       QuickChecks, DiffeoInvolutizer, PDEProlongationTest, Tests
-  build-depends:       base >=4.10 && <5, containers >=0.6, tf-random, parallel, QuickCheck
+                       IntertwinerSym3, IntertwinerASym2, MultiIndex, PDE, PDEProlongation, TriangleMap,
+                       Index, Polynomial, QuickChecks, DiffeoInvolutizer, PDEProlongationTest, Tests
+  build-depends:       base >=4.10 && <5, containers >=0.6, tf-random, parallel, QuickCheck, deepseq >= 1.4
   hs-source-dirs:      src
   default-language:    Haskell2010
 

@@ -1,9 +1,17 @@
-module DiffeoEquationsArea (areaPDE, evalAreaAtEta) where
+module DiffeoEquationsArea (areaPDE,
+                            evalAreaAtEta,
+                            areaExInt1,
+                            areaExInt2,
+                            areaExInt3,
+                            ansatz1, ansatz2, ansatz3,
+                            ansatz1inner, ansatz2inner, ansatz3inner)
+where
 
 import PDE
 import qualified IntertwinerArea
 import qualified IntertwinerMetric
 import qualified IntertwinerSym3
+import qualified IntertwinerASym2
 import Index
 import Control.Parallel.Strategies
 
@@ -66,6 +74,52 @@ deltaS (ISUp m) (ISDown n) = if m == n then 1 else 0
 deltaS2 :: Num a => IS2Up -> IS2Down -> a
 deltaS2 (IS2Up m) (IS2Down n) = if m == n then 1 else 0
 
+epsilon :: Num a => Int -> Int -> Int -> Int -> a
+epsilon 0 1 2 3 = 1
+epsilon 0 1 3 2 = -1
+epsilon 0 2 1 3 = -1
+epsilon 0 2 3 1 = 1
+epsilon 0 3 1 2 = 1
+epsilon 0 3 2 1 = -1
+epsilon 1 0 2 3 = -1
+epsilon 1 0 3 2 = 1
+epsilon 1 2 0 3 = 1
+epsilon 1 2 3 0 = -1
+epsilon 1 3 0 2 = -1
+epsilon 1 3 2 0 = 1
+epsilon 2 0 1 3 = 1
+epsilon 2 0 3 1 = -1
+epsilon 2 1 0 3 = -1
+epsilon 2 1 3 0 = 1
+epsilon 2 3 0 1 = 1
+epsilon 2 3 1 0 = -1
+epsilon 3 0 1 2 = -1
+epsilon 3 0 2 1 = 1
+epsilon 3 1 0 2 = 1
+epsilon 3 1 2 0 = -1
+epsilon 3 2 0 1 = -1
+epsilon 3 2 1 0 = 1
+epsilon _ _ _ _ = 0
+
+epsilonSDown :: Num a => ISDown -> ISDown -> ISDown -> ISDown -> a
+epsilonSDown (ISDown a) (ISDown b) (ISDown c) (ISDown d) = epsilon a b c d
+
+epsilonSUp :: Num a => ISUp -> ISUp -> ISUp -> ISUp -> a
+epsilonSUp (ISUp a) (ISUp b) (ISUp c) (ISUp d) = epsilon a b c d
+
+eta :: Num a => Int -> Int -> a
+eta 0 0 = 1
+eta 1 1 = -1
+eta 2 2 = -1
+eta 3 3 = -1
+eta _ _ = 0
+
+etaSUp :: Num a => ISUp -> ISUp -> a
+etaSUp (ISUp a) (ISUp b) = eta a b
+
+etaSDown :: Num a => ISDown -> ISDown -> a
+etaSDown (ISDown a) (ISDown b) = eta a b
+
 areaFirstDerivative :: Int -> Int -> Int
 areaFirstDerivative a i = areaDimension + a * spacetimeDimension + i
 
@@ -79,7 +133,8 @@ firstRange :: [Int]
 firstRange = [0..firstDimension - 1]
 
 buildEtaEtaMap :: (Num a, Eq a) => Map.Map Int a
-buildEtaEtaMap = Map.fromList $ zip firstRange $ [-1, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, -1, 0, 0, 0, 1, 0, 0, 1, 0, 1] ++ repeat 0
+--buildEtaEtaMap = Map.fromList $ zip firstRange $ [-1, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, -1, 0, 0, 0, 1, 0, 0, 1, 0, 1] ++ repeat 0
+buildEtaEtaMap = Map.fromList $ zip firstRange $ [-1, 0, 0, 0, 0, -1, -1, 0, 0, 1, 0, -1, -1, 0, 0, 1, 0, 0, 1, 0, 1] ++ repeat 0
 
 evalAreaAtEta :: (Num a, Eq a, Fractional a) => PDESystem a -> PDESystem a
 evalAreaAtEta = evalPDESystem buildEtaEtaMap
@@ -240,3 +295,164 @@ areaPDE3Inner areaIntMap sym2ProjMap sym3IntMap k n = foldl' addPDEs (emptyPDE f
                                                              spacetimeRangeUp <*>
                                                              spacetimeRangeUp <*>
                                                              spacetimeRangeUp
+
+areaExInt1 :: (Fractional a, Eq a) => PDESystem a
+areaExInt1 = PDESys firstDimension $
+             (\mM aA -> let pde1 = areaExInt1Part1Inner aIMap s3pMap mM aA
+                        in pde1)
+             <$> (S.fromList IntertwinerASym2.asym2RangeDown) <*>
+                 (S.fromList areaRangeUp)
+    where 
+      aIMap = IntertwinerArea.buildAreaIntertwinerMap
+      s3pMap = IntertwinerASym2.buildASym2ProjectorMap
+
+areaExInt2 :: (Fractional a, Eq a) => PDESystem a
+areaExInt2 = PDESys firstDimension $
+             (\mM aA p -> let pde1 = areaExInt2Part1Inner s3pMap mM aA p
+                              pde2 = areaExInt2Part2Inner aIMap s3pMap mM aA p
+                          in addPDEs pde1 pde2)
+             <$> (S.fromList IntertwinerASym2.asym2RangeDown) <*>
+                 (S.fromList areaRangeUp) <*>
+                 (S.fromList spacetimeRangeUp)
+    where 
+      aIMap = IntertwinerArea.buildAreaIntertwinerMap
+      s3pMap = IntertwinerASym2.buildASym2ProjectorMap
+
+areaExInt3 :: (Fractional a, Eq a) => PDESystem a
+areaExInt3 = PDESys firstDimension $
+             (\mM aA iI -> let pde1 = areaExInt3Part1Inner aIMap s3pMap mM aA iI
+                               pde2 = areaExInt3Part2Inner mIMap s3pMap mM aA iI
+                           in addPDEs pde1 pde2)
+             <$> (S.fromList IntertwinerASym2.asym2RangeDown) <*>
+                 (S.fromList areaRangeUp) <*>
+                 (S.fromList spacetimeSecondRangeDown)
+    where 
+      aIMap = IntertwinerArea.buildAreaIntertwinerMap
+      mIMap = IntertwinerMetric.buildMetricIntertwinerMap
+      s3pMap = IntertwinerASym2.buildASym2ProjectorMap
+
+areaExInt1Part1Inner :: (Fractional a, Eq a) => Map.Map (IGDown, IGUp, ISUp, ISDown) a ->
+                                                Map.Map ((ISUp, ISUp), IAS2Down) a ->
+                                                IAS2Down -> IGUp -> PDE a
+areaExInt1Part1Inner aIMap s3pMap mM aA = foldl' addPDEs (emptyPDE firstDimension) $
+                                                 catMaybes $
+                                                 (\bB m n i -> let fac1 = s3pMap Map.! ((m, n), mM)
+                                                                   fac2 = etaSUp n (ISUp $ unISDown i)
+                                                                   fac3 = aIMap Map.! (bB, aA, m, i)
+                                                                   factor = fac1 * fac2 * fac3
+                                                               in if factor == 0 then Nothing
+                                                                                 else Just $
+                                         pdeFromConstDerivative firstDimension factor (unIGDown bB))
+                                                 <$> areaRangeDown <*>
+                                                     spacetimeRangeUp <*>
+                                                     spacetimeRangeUp <*>
+                                                     spacetimeRangeDown
+
+areaExInt2Part1Inner :: (Fractional a, Eq a) => Map.Map ((ISUp, ISUp), IAS2Down) a -> IAS2Down -> IGUp -> ISUp -> PDE a
+areaExInt2Part1Inner s3pMap mM aA p = foldl' addPDEs (emptyPDE firstDimension) $
+                                             catMaybes $
+                                             (\m n -> let fac1 = s3pMap Map.! ((m, n), mM)
+                                                          fac2 = etaSUp n p
+                                                          factor = fac1 * fac2
+                                                          indicesAm = areaFirstDerivative (unIGUp aA) (unISUp m)
+                                                      in if factor == 0 then Nothing
+                                                                        else Just $
+                                     pdeFromConstDerivative firstDimension factor indicesAm)
+                                             <$> spacetimeRangeUp <*>
+                                                 spacetimeRangeUp
+
+areaExInt2Part2Inner :: (Fractional a, Eq a) => Map.Map (IGDown, IGUp, ISUp, ISDown) a ->
+                                                Map.Map ((ISUp, ISUp), IAS2Down) a ->
+                                                IAS2Down -> IGUp -> ISUp -> PDE a
+areaExInt2Part2Inner aIMap s3pMap mM aA p = foldl' addPDEs (emptyPDE firstDimension) $
+                                                   catMaybes $
+                                                   (\bB m n i -> let fac1 = s3pMap Map.! ((m, n), mM)
+                                                                     fac2 = etaSUp n (ISUp $ unISDown i)
+                                                                     fac3 = aIMap Map.! (bB, aA, m, i)
+                                                                     factor = (-1) * fac1 * fac2 * fac3
+                                                                     indicesBp = areaFirstDerivative (unIGDown bB) (unISUp p)
+                                                                 in if factor == 0 then Nothing
+                                                                                   else Just $
+                                           pdeFromConstDerivative firstDimension factor indicesBp)
+                                                   <$> areaRangeDown <*>
+                                                       spacetimeRangeUp <*>
+                                                       spacetimeRangeUp <*>
+                                                       spacetimeRangeDown
+
+areaExInt3Part1Inner :: (Fractional a, Eq a) => Map.Map (IGDown, IGUp, ISUp, ISDown) a ->
+                                                Map.Map ((ISUp, ISUp), IAS2Down) a ->
+                                                IAS2Down -> IGUp -> IS2Down -> PDE a
+areaExInt3Part1Inner aIMap s3pMap mM aA iI = foldl' addPDEs (emptyPDE firstDimension) $
+                                                    catMaybes $
+                                                    (\bB m n i -> let fac1 = s3pMap Map.! ((m, n), mM)
+                                                                      fac2 = etaSUp n (ISUp $ unISDown i)
+                                                                      fac3 = aIMap Map.! (bB, aA, m, i)
+                                                                      factor = fac1 * fac2 * fac3
+                                                                      indicesBI = areaSecondDerivative (unIGDown bB) (unIS2Down iI)
+                                                                  in if factor == 0 then Nothing
+                                                                                    else Just $
+                                            pdeFromConstDerivative firstDimension factor indicesBI)
+                                                    <$> areaRangeDown <*>
+                                                        spacetimeRangeUp <*>
+                                                        spacetimeRangeUp <*>
+                                                        spacetimeRangeDown
+
+areaExInt3Part2Inner :: (Fractional a, Eq a) => Map.Map (IGDown, IGUp, ISUp, ISDown) a ->
+                                                Map.Map ((ISUp, ISUp), IAS2Down) a ->
+                                                IAS2Down -> IGUp -> IS2Down -> PDE a
+areaExInt3Part2Inner mIMap s3pMap mM aA iI = foldl' addPDEs (emptyPDE firstDimension) $
+                                                    catMaybes $
+                                                    (\jJ m n i -> let fac1 = s3pMap Map.! ((m, n), mM)
+                                                                      fac2 = etaSUp n (ISUp $ unISDown i)
+                                                                      fac3 = mIMap Map.! (fromIS2Down iI, fromIS2Up jJ, m, i)
+                                                                      factor = fac1 * fac2 * fac3
+                                                                      indicesAJ = areaSecondDerivative (unIGUp aA) (unIS2Up jJ)
+                                                                  in if factor == 0 then Nothing
+                                                                                    else Just $
+                                            pdeFromConstDerivative firstDimension factor indicesAJ)
+                                                    <$> spacetimeSecondRangeUp <*>
+                                                        spacetimeRangeUp <*>
+                                                        spacetimeRangeUp <*>
+                                                        spacetimeRangeDown
+
+ansatz1inner :: (Fractional a, Eq a) => ISDown -> ISDown -> ISDown -> ISDown -> ISDown -> ISDown -> a
+ansatz1inner a b c d p q = 1/2 * (etaSDown p q) * ((etaSDown a c) * (etaSDown b d) - (etaSDown a d) * (etaSDown b c))
+
+ansatz2inner :: (Fractional a, Eq a) => ISDown -> ISDown -> ISDown -> ISDown -> ISDown -> ISDown -> a
+ansatz2inner a b c d p q = 1/8 * (   (etaSDown p a) * (etaSDown b c) * (etaSDown d q)
+                                   - (etaSDown p b) * (etaSDown a c) * (etaSDown d q)
+                                   - (etaSDown p a) * (etaSDown b d) * (etaSDown c q)
+                                   + (etaSDown q a) * (etaSDown b c) * (etaSDown d p)
+                                   + (etaSDown p b) * (etaSDown a d) * (etaSDown c q)
+                                   - (etaSDown q b) * (etaSDown a c) * (etaSDown d p)
+                                   - (etaSDown q a) * (etaSDown b d) * (etaSDown c p)
+                                   + (etaSDown q b) * (etaSDown a d) * (etaSDown c p) )
+
+ansatz3inner :: (Fractional a, Eq a) => ISDown -> ISDown -> ISDown -> ISDown -> ISDown -> ISDown -> a
+ansatz3inner a b c d p q = (epsilonSDown a b c d) * (etaSDown p q)
+
+ansatzAI :: (Fractional a, Eq a) => (ISDown -> ISDown -> ISDown -> ISDown -> ISDown -> ISDown -> a) ->
+                                    IGUp -> IS2Up -> a
+ansatzAI f aA iI = foldl' (+) 0 $
+                   (\a b c d p q -> let fac1 = f a b c d p q
+                                        fac2 = aIMap Map.! (aA, (a, b, c, d))
+                                        fac3 = s2IMap Map.! (iI, (p, q))
+                                    in fac1 * fac2 * fac3)
+                   <$> spacetimeRangeDown <*>
+                       spacetimeRangeDown <*>
+                       spacetimeRangeDown <*>
+                       spacetimeRangeDown <*>
+                       spacetimeRangeDown <*>
+                       spacetimeRangeDown
+  where
+    aIMap = IntertwinerArea.buildAreaDofIntertwinerMap
+    s2IMap = IntertwinerMetric.buildSym2IntertwinerMap
+
+ansatz1 :: (Fractional a, Eq a) => [a]
+ansatz1 = ansatzAI ansatz1inner <$> areaRangeUp <*> spacetimeSecondRangeUp
+
+ansatz2 :: (Fractional a, Eq a) => [a]
+ansatz2 = ansatzAI ansatz2inner <$> areaRangeUp <*> spacetimeSecondRangeUp
+
+ansatz3 :: (Fractional a, Eq a) => [a]
+ansatz3 = ansatzAI ansatz3inner <$> areaRangeUp <*> spacetimeSecondRangeUp

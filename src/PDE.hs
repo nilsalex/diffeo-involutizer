@@ -175,6 +175,10 @@ pdeFromConstIdepDerivative :: (Num a, Eq a) => Int -> a -> Int -> Int -> PDE a
 pdeFromConstIdepDerivative ideps 0 _ _ = pdeFromMap ideps M.empty
 pdeFromConstIdepDerivative ideps c i d = pdeFromMap ideps $ M.singleton (single ideps d) (coeffFromConstIdep c i)
 
+pdeFromConstDerivative :: (Num a, Eq a) => Int -> a -> Int -> PDE a
+pdeFromConstDerivative ideps 0 _ = pdeFromMap ideps M.empty
+pdeFromConstDerivative ideps c d = pdeFromMap ideps $ M.singleton (single ideps d) (coeffFromConst c)
+
 prop_pdeFromConstIdepDerivative :: Property
 prop_pdeFromConstIdepDerivative = forAll
                                   ((arbitrary :: Gen (Int, Int, Int, Int)) `suchThat` \(ideps, _, i, d) -> ideps > 0 &&
@@ -275,7 +279,8 @@ evalPDESystemRand gen pdesys@(PDESys ideps _) = evalPDESystem (buildRandomIdepsM
 
 prettyPDEMatrix :: (Num a, Eq a, Show a, Ord a) => PDESystem a -> String
 prettyPDEMatrix (PDESys ideps pdeSequence) = let tMap = buildTriangleMap ideps
-                                             in S.foldMapWithIndex (prettyPDEMatrixRow $ toZerothFirstSecond tMap) pdeSequence
+                                                 tMap3 = buildTriangleMap3 ideps
+                                             in S.foldMapWithIndex (prettyPDEMatrixRow $ toNum tMap tMap3) pdeSequence
 
 prettyPDEMatrixSecond :: (Num a, Eq a, Show a, Ord a) => PDESystem a -> String
 prettyPDEMatrixSecond (PDESys ideps pdeSequence) = let tMap = buildTriangleMap ideps

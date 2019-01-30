@@ -9,6 +9,9 @@ newtype ISDown = ISDown { unISDown :: Int } deriving (Eq, Show, Read, Ord)
 newtype IS2Up = IS2Up { unIS2Up :: Int } deriving (Eq, Show, Read, Ord)
 newtype IS2Down = IS2Down { unIS2Down :: Int } deriving (Eq, Show, Read, Ord)
 
+newtype IAS2Up = IAS2Up { unIAS2Up :: Int } deriving (Eq, Show, Read, Ord)
+newtype IAS2Down = IAS2Down { unIAS2Down :: Int } deriving (Eq, Show, Read, Ord)
+
 newtype IS3Up = IS3Up { unIS3Up :: Int } deriving (Eq, Show, Read, Ord)
 newtype IS3Down = IS3Down { unIS3Down :: Int } deriving (Eq, Show, Read, Ord)
 

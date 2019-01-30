@@ -134,3 +134,41 @@ buildAreaIntertwinerMap = Map.fromList $ let indicesMap = buildAreaIndicesMap in
                               m <- spacetimeRangeUp
                               n <- spacetimeRangeDown
                               return ((a, b, m, n), areaIntertwiner indicesMap a b m n)
+
+dofIntertwiner :: Fractional a => AreaIndices -> Int -> Int -> Int -> Int -> a
+dofIntertwiner (a, b, c, d) e f g h = let summand1 = if (a == e) && (b == f) && (c == g) && (d == h) then (1/8) else 0
+                                          summand2 = if (a == f) && (b == e) && (c == g) && (d == h) then (-1/8) else 0
+                                          summand3 = if (a == e) && (b == f) && (c == h) && (d == g) then (-1/8) else 0
+                                          summand4 = if (a == f) && (b == e) && (c == h) && (d == g) then (1/8) else 0
+                                          summand5 = if (a == g) && (b == h) && (c == e) && (d == f) then (1/8) else 0
+                                          summand6 = if (a == g) && (b == h) && (c == f) && (d == e) then (-1/8) else 0
+                                          summand7 = if (a == h) && (b == g) && (c == e) && (d == f) then (-1/8) else 0
+                                          summand8 = if (a == h) && (b == g) && (c == f) && (d == e) then (1/8) else 0
+                                      in summand1 + summand2 + summand3 + summand4 +
+                                         summand5 + summand6 + summand7 + summand8
+
+areaDofIntertwiner :: Fractional a => Map.Map Int AreaIndices -> IGUp -> (ISDown, ISDown, ISDown, ISDown) -> a
+areaDofIntertwiner indicesMap (IGUp a) (ISDown m, ISDown n, ISDown p, ISDown q) = intertwinerFactor (aIUpfromAI (indicesMap Map.! a)) *
+                                                                                  dofIntertwiner (indicesMap Map.! a) m n p q
+
+buildAreaDofIntertwinerMap :: Fractional a => Map.Map (IGUp, (ISDown, ISDown, ISDown, ISDown)) a
+buildAreaDofIntertwinerMap = Map.fromList $ let indicesMap = buildAreaIndicesMap in
+                             do a <- areaRangeUp
+                                m <- spacetimeRangeDown
+                                n <- spacetimeRangeDown
+                                p <- spacetimeRangeDown
+                                q <- spacetimeRangeDown
+                                return ((a, (m, n, p, q)), areaDofIntertwiner indicesMap a (m, n, p, q))
+
+areaProjector :: Fractional a => Map.Map Int AreaIndices -> (ISUp, ISUp, ISUp, ISUp) -> IGDown -> a
+areaProjector indicesMap (ISUp m, ISUp n, ISUp p, ISUp q) (IGDown a) = dofIntertwiner (indicesMap Map.! a) m n p q
+
+buildAreaProjectorMap :: Fractional a => Map.Map ((ISUp, ISUp, ISUp, ISUp), IGDown) a
+buildAreaProjectorMap = Map.fromList $ let indicesMap = buildAreaIndicesMap in
+                                        do a <- areaRangeDown
+                                           m <- spacetimeRangeUp
+                                           n <- spacetimeRangeUp
+                                           p <- spacetimeRangeUp
+                                           q <- spacetimeRangeUp
+                                           return (((m, n, p, q), a), areaProjector indicesMap (m, n, p, q) a)
+

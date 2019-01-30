@@ -17,3 +17,7 @@ triangleListInner dim ((xp, xi):xs) i = (nextPair dim xp, i) : (xp, xi) : xs
 
 nextPair :: Int -> (Int, Int) -> (Int, Int)
 nextPair dim (a, b) = if b < dim - 1 then (a, b + 1) else (a+1, a+1)
+
+buildTriangleMap3 :: Int -> Map.Map (Int, Int, Int) Int
+buildTriangleMap3 dim = Map.fromList $ zip [(a, b, c) | a <- [0..dim-1], b <- [a..dim-1], c <- [b..dim-1]]
+                                           [0..]
